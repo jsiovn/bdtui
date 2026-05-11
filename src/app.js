@@ -37,19 +37,31 @@ export async function run(cwd) {
   let debounceTimer = null;
 
   function setStatus(msg, isError = false) {
-    const prefix = isError ? '{red-fg}' : '';
-    const suffix = isError ? '{/}' : '';
-    statusBar.setContent(` ${prefix}${msg}${suffix} | {gray-fg}? help{/}`);
+    const icon = isError ? '{red-fg}✗{/}' : '{green-fg}●{/}';
+    const text = isError ? `{red-fg}${msg}{/}` : msg;
+    statusBar.setContent(` ${icon} ${text}  {gray-fg}? help · q quit{/}`);
     screen.render();
   }
 
   function renderTabBar() {
     const tabs = FILTERS.map((f) => {
       return f === state.filter
-        ? `{blue-bg}{white-fg} ${f} {/}`
-        : ` {gray-fg}${f}{/} `;
+        ? `{blue-bg}{white-fg}{bold} ${f} {/bold}{/}`
+        : `{gray-fg} ${f} {/}`;
     });
-    tabBar.setContent(tabs.join(' '));
+    const count = state.listOrder.length;
+    const info  = count > 0 ? `{gray-fg}  │  ${count} beads{/}` : '';
+    tabBar.setContent(tabs.join('{gray-fg}│{/}') + info);
+  }
+
+  function setFocusBorder(focused) {
+    if (focused === 'list') {
+      list.style.border.fg   = 'cyan';
+      detail.style.border.fg = 'gray';
+    } else {
+      list.style.border.fg   = 'gray';
+      detail.style.border.fg = 'cyan';
+    }
   }
 
   function render() {
@@ -84,6 +96,10 @@ export async function run(cwd) {
 
   // Capture all keypresses on the list to detect navigation
   list.on('keypress', onNav);
+
+  // Focus border highlighting
+  list.on('focus',   () => { setFocusBorder('list');   screen.render(); });
+  detail.on('focus', () => { setFocusBorder('detail'); screen.render(); });
 
   async function refresh() {
     setStatus('Refreshing…');
@@ -125,11 +141,11 @@ export async function run(cwd) {
   screen.key(['?'], () => showHelp(screen, () => { list.focus(); screen.render(); }));
 
   screen.key(['enter', 'l'], () => {
-    if (screen.focused === list) { detail.focus(); screen.render(); }
+    if (screen.focused === list) { setFocusBorder('detail'); detail.focus(); screen.render(); }
   });
 
   screen.key(['h', 'escape'], () => {
-    if (screen.focused !== list) { list.focus(); screen.render(); }
+    if (screen.focused !== list) { setFocusBorder('list'); list.focus(); screen.render(); }
   });
 
   screen.key(['g'], () => {
@@ -282,7 +298,9 @@ export async function run(cwd) {
       const p = execFile(cmd, args, res);
       p.stdin?.end(id);
     });
-    write('xclip', ['-selection', 'clipboard'])
+    write('wl-copy', [])
+      .catch(() => write('xclip', ['-selection', 'clipboard']))
+      .catch(() => write('xsel', ['--clipboard', '--input']))
       .catch(() => write('pbcopy', []))
       .then((err) => {
         setStatus(err ? `${id} (clipboard unavailable)` : `Copied ${id}`);
@@ -291,6 +309,7 @@ export async function run(cwd) {
 
   // ── Boot ───────────────────────────────────────────────────────────────────
 
+  setFocusBorder('list');
   list.focus();
   setStatus('Loading…');
   try {

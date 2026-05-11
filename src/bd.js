@@ -15,7 +15,8 @@ async function runBd(args, cwd) {
 export const bdList = (filter, cwd) => {
   if (filter === 'ready') return runBd(['ready', '--json'], cwd);
   const args = ['list', '--json'];
-  if (filter && filter !== 'all') args.push('--status', filter);
+  if (filter === 'all') args.push('--all');
+  else if (filter) args.push('--status', filter);
   return runBd(args, cwd);
 };
 
@@ -30,6 +31,11 @@ export const bdDeps = async (id, cwd) => {
     runBd(['dep', 'list', id, '--direction=up', '--json'], cwd).catch(() => []),
   ]);
   return { down: Array.isArray(down) ? down : [], up: Array.isArray(up) ? up : [] };
+};
+
+export const bdDepListDown = async (id, cwd) => {
+  const res = await runBd(['dep', 'list', id, '--json'], cwd).catch(() => []);
+  return Array.isArray(res) ? res : [];
 };
 
 export const bdUpdate = (id, opts, cwd) => {
@@ -57,3 +63,6 @@ export const bdDepAdd = (child, parent, type, cwd) => {
 
 export const bdDepRemove = (child, parent, cwd) =>
   runBd(['dep', 'remove', child, parent], cwd);
+
+// Returns all children of an epic (all statuses — bd children includes closed by default)
+export const bdChildren = (id, cwd) => runBd(['children', id, '--json'], cwd);
