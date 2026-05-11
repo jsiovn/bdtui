@@ -1,0 +1,12 @@
+{
+  "name": "bdtui",
+  "version": "0.1.0",
+  "description": "Terminal UI for the bd beads issue tracker",
+  "type": "module",
+  "bin": { "bdtui": "bin/bdtui.js" },
+  "files": ["bin", "src", "README.md"],
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "blessed": "^0.1.81"
+  }
+}
