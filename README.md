@@ -1,18 +1,27 @@
 # bdtui
 
-Fast blessed-based terminal UI for the [`bd`](https://github.com/nicholasgasior/beads) beads issue tracker.
-
-## Install
-
-```bash
-npm install -g bdtui
-```
+Fast blessed-based terminal UI for the [`bd`](https://github.com/gastownhall/beads) beads issue tracker.
 
 ## Requirements
 
 - Node ≥ 20
 - `bd` installed and on `$PATH`
 - A project with a `.beads/` database (created by `bd init`)
+
+## Install
+
+First install `bd`:
+
+```bash
+brew install beads          # macOS / Linux
+npm install -g @beads/bd    # via Node.js
+```
+
+Then install bdtui:
+
+```bash
+npm install -g bdtui
+```
 
 ## Usage
 
