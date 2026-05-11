@@ -8,6 +8,12 @@ Fast blessed-based terminal UI for the [`bd`](https://github.com/nicholasgasior/
 npm install -g bdtui
 ```
 
+## Requirements
+
+- Node ≥ 20
+- `bd` installed and on `$PATH`
+- A project with a `.beads/` database (created by `bd init`)
+
 ## Usage
 
 ```bash
@@ -23,11 +29,19 @@ bdtui ~/www/myapp  # explicit project path
 │ list (40%)            │ detail (60%)                        │
 │ > be-12 P1 in_prog …  │ be-12 — Some bead title             │
 │   be-13 P2 open    …  │ Status: in_progress  Priority: P1   │
-│                       │ Type:   feature      Owner: paolo   │
+│                       │ Type:   feature      Owner: —        │
 │                       │ …                                   │
 ├───────────────────────┴─────────────────────────────────────┤
-│ Ready | ? help                                              │
+│ ● Ready  │  ? help · q quit                                 │
 └─────────────────────────────────────────────────────────────┘
+```
+
+Beads with parent–child dependencies are shown as a tree inside the active filter:
+
+```
+be-10  P1 open    E    Epic title
+be-11  P2 open    T  ├ Child task
+be-12  P2 ready   T  └ Another child
 ```
 
 ## Keybindings
@@ -52,8 +66,10 @@ bdtui ~/www/myapp  # explicit project path
 | `?` | Help overlay |
 | `q` / `Ctrl-C` | Quit |
 
-## Requirements
+## Author
 
-- Node ≥ 20
-- `bd` installed and on `$PATH`
-- A project with a `.beads/` database (created by `bd init`)
+[JSIOVN](https://github.com/jsiovn)
+
+## License
+
+MIT

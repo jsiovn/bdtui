@@ -5,6 +5,8 @@
   "type": "module",
   "bin": { "bdtui": "bin/bdtui.js" },
   "files": ["bin", "src", "README.md"],
+  "author": "JSIOVN",
+  "license": "MIT",
   "engines": { "node": ">=20" },
   "dependencies": {
     "blessed": "^0.1.81"
