@@ -1,13 +1,14 @@
 import blessed from 'blessed';
 import { execFile } from 'child_process';
-import { state, loadList, loadDetail, applyMutation } from './state.js';
+import { state, loadList, loadDetail, applyMutation, applyTypeFilter } from './state.js';
 import { createList, renderList } from './views/list.js';
 import { createDetail, renderDetail } from './views/detail.js';
-import { statusPicker, priorityPicker, textPrompt, depMenu } from './views/modals.js';
+import { statusPicker, priorityPicker, textPrompt, depMenu, skillPicker } from './views/modals.js';
 import { showHelp } from './keys.js';
 import { bdUpdate, bdClose, bdClaim, bdReopen, bdDepAdd, bdDepRemove } from './bd.js';
 
-const FILTERS = ['ready', 'open', 'in_progress', 'all'];
+const FILTERS = ['blocked', 'ready', 'in_progress', 'closed', 'all'];
+const TYPE_FILTERS = ['all', 'epic', 'task'];
 
 export async function run(cwd) {
   state.cwd = cwd;
@@ -36,11 +37,22 @@ export async function run(cwd) {
 
   let debounceTimer = null;
 
-  function setStatus(msg, isError = false) {
+  let statusTimer = null;
+  function defaultStatus() {
+    return state.filter ? `Filter: ${state.filter}` : 'Ready';
+  }
+  function setStatus(msg, isError = false, transient = false) {
+    if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
     const icon = isError ? '{red-fg}✗{/}' : '{green-fg}●{/}';
     const text = isError ? `{red-fg}${msg}{/}` : msg;
     statusBar.setContent(` ${icon} ${text}  {gray-fg}? help · q quit{/}`);
     screen.render();
+    if (transient) {
+      statusTimer = setTimeout(() => {
+        statusTimer = null;
+        setStatus(defaultStatus());
+      }, 3000);
+    }
   }
 
   function renderTabBar() {
@@ -50,8 +62,10 @@ export async function run(cwd) {
         : `{gray-fg} ${f} {/}`;
     });
     const count = state.listOrder.length;
+    const typeLabel = state.typeFilter === 'all' ? 'all' : `${state.typeFilter} only`;
+    const typeInfo = `  {gray-fg}│{/}  {yellow-fg}filter:{/} ${typeLabel}`;
     const info  = count > 0 ? `{gray-fg}  │  ${count} beads{/}` : '';
-    tabBar.setContent(tabs.join('{gray-fg}│{/}') + info);
+    tabBar.setContent(tabs.join('{gray-fg}│{/}') + typeInfo + info);
   }
 
   function setFocusBorder(focused) {
@@ -88,7 +102,7 @@ export async function run(cwd) {
           renderDetail(detail);
           screen.render();
         } catch (err) {
-          setStatus(err.message, true);
+          setStatus(err.message, true, true);
         }
       }, 80);
     });
@@ -112,13 +126,14 @@ export async function run(cwd) {
       render();
       setStatus('Ready');
     } catch (err) {
-      setStatus(err.message, true);
+      setStatus(err.message, true, true);
     }
   }
 
-  async function cycleFilter() {
+  async function cycleFilter(dir = 1) {
     const idx = FILTERS.indexOf(state.filter);
-    state.filter = FILTERS[(idx + 1) % FILTERS.length];
+    const next = (idx + dir + FILTERS.length) % FILTERS.length;
+    state.filter = FILTERS[next];
     setStatus(`Filter: ${state.filter} — loading…`);
     try {
       await loadList();
@@ -127,42 +142,83 @@ export async function run(cwd) {
       render();
       setStatus(`Filter: ${state.filter}`);
     } catch (err) {
-      setStatus(err.message, true);
+      setStatus(err.message, true, true);
     }
   }
 
+  async function cycleTypeFilter() {
+    const idx = TYPE_FILTERS.indexOf(state.typeFilter);
+    state.typeFilter = TYPE_FILTERS[(idx + 1) % TYPE_FILTERS.length];
+    applyTypeFilter();
+    if (state.selectedId && !state.listOrder.includes(state.selectedId)) {
+      state.selectedId = state.listOrder[0] || null;
+    } else if (!state.selectedId) {
+      state.selectedId = state.listOrder[0] || null;
+    }
+    render();
+    if (state.selectedId) {
+      try {
+        await loadDetail(state.selectedId);
+        renderDetail(detail);
+        screen.render();
+      } catch (err) {
+        setStatus(err.message, true, true);
+        return;
+      }
+    }
+    setStatus(`Type: ${state.typeFilter}`, false, true);
+  }
+
   // ── Global keys ────────────────────────────────────────────────────────────
+  // Modal open? swallow global keys so modals own their own keybindings
+  // (e.g. Esc/q close the help dialog instead of quitting the app).
+  let modalOpen = false;
+  function key(keys, handler) {
+    screen.key(keys, (...args) => {
+      if (modalOpen) return;
+      handler(...args);
+    });
+  }
 
-  screen.key(['q', 'C-c'], () => { screen.destroy(); process.exit(0); });
+  key(['q', 'C-c'], () => { screen.destroy(); process.exit(0); });
 
-  screen.key(['r'], refresh);
-  screen.key(['f'], cycleFilter);
+  key(['r'], refresh);
+  key(['tab'], () => cycleFilter(1));
+  key(['S-tab'], () => cycleFilter(-1));
+  key(['t'], cycleTypeFilter);
 
-  screen.key(['?'], () => showHelp(screen, () => { list.focus(); screen.render(); }));
+  key(['?'], () => {
+    modalOpen = true;
+    showHelp(screen, () => {
+      modalOpen = false;
+      list.focus();
+      screen.render();
+    });
+  });
 
-  screen.key(['enter', 'l'], () => {
+  key(['enter', 'l'], () => {
     if (screen.focused === list) { setFocusBorder('detail'); detail.focus(); screen.render(); }
   });
 
-  screen.key(['h', 'escape'], () => {
+  key(['h', 'escape'], () => {
     if (screen.focused !== list) { setFocusBorder('list'); list.focus(); screen.render(); }
   });
 
-  screen.key(['g'], () => {
+  key(['g'], () => {
     if (screen.focused !== list) return;
     list.select(0);
     onNav();
     screen.render();
   });
 
-  screen.key(['G'], () => {
+  key(['G'], () => {
     if (screen.focused !== list) return;
     list.select(state.listOrder.length - 1);
     onNav();
     screen.render();
   });
 
-  screen.key(['/'], async () => {
+  key(['/'], async () => {
     if (screen.focused !== list) return;
     try {
       const query = await textPrompt(screen, 'Filter by title');
@@ -185,7 +241,7 @@ export async function run(cwd) {
 
   // ── Mutation keys (list focus only) ────────────────────────────────────────
 
-  screen.key(['s'], async () => {
+  key(['s'], async () => {
     if (screen.focused !== list || !state.selectedId) return;
     const id = state.selectedId;
     try {
@@ -197,14 +253,14 @@ export async function run(cwd) {
       renderList(list);
       renderDetail(detail);
       screen.render();
-      setStatus(`${id}: ${oldStatus} → ${newStatus}`);
+      setStatus(`${id}: ${oldStatus} → ${newStatus}`, false, true);
     } catch (err) {
       list.focus();
-      if (err.message !== 'cancelled') setStatus(err.message, true);
+      if (err.message !== 'cancelled') setStatus(err.message, true, true);
     }
   });
 
-  screen.key(['c'], async () => {
+  key(['c'], async () => {
     if (screen.focused !== list || !state.selectedId) return;
     const id = state.selectedId;
     try {
@@ -214,14 +270,14 @@ export async function run(cwd) {
       await applyMutation(id, () => bdClose(id, reason, state.cwd));
       await loadList();
       render();
-      setStatus(`Closed ${id}`);
+      setStatus(`Closed ${id}`, false, true);
     } catch (err) {
       list.focus();
-      if (err.message !== 'cancelled') setStatus(err.message, true);
+      if (err.message !== 'cancelled') setStatus(err.message, true, true);
     }
   });
 
-  screen.key(['C'], async () => {
+  key(['C'], async () => {
     if (screen.focused !== list || !state.selectedId) return;
     const id = state.selectedId;
     setStatus(`Claiming ${id}…`);
@@ -230,13 +286,13 @@ export async function run(cwd) {
       renderList(list);
       renderDetail(detail);
       screen.render();
-      setStatus(`Claimed ${id}`);
+      setStatus(`Claimed ${id}`, false, true);
     } catch (err) {
-      setStatus(err.message, true);
+      setStatus(err.message, true, true);
     }
   });
 
-  screen.key(['o'], async () => {
+  key(['o'], async () => {
     if (screen.focused !== list || !state.selectedId) return;
     const id = state.selectedId;
     setStatus(`Reopening ${id}…`);
@@ -244,13 +300,13 @@ export async function run(cwd) {
       await applyMutation(id, () => bdReopen(id, state.cwd));
       await loadList();
       render();
-      setStatus(`Reopened ${id}`);
+      setStatus(`Reopened ${id}`, false, true);
     } catch (err) {
-      setStatus(err.message, true);
+      setStatus(err.message, true, true);
     }
   });
 
-  screen.key(['p'], async () => {
+  key(['p'], async () => {
     if (screen.focused !== list || !state.selectedId) return;
     const id = state.selectedId;
     try {
@@ -261,14 +317,14 @@ export async function run(cwd) {
       renderList(list);
       renderDetail(detail);
       screen.render();
-      setStatus(`${id}: priority → ${priority}`);
+      setStatus(`${id}: priority → ${priority}`, false, true);
     } catch (err) {
       list.focus();
-      if (err.message !== 'cancelled') setStatus(err.message, true);
+      if (err.message !== 'cancelled') setStatus(err.message, true, true);
     }
   });
 
-  screen.key(['D'], async () => {
+  key(['D'], async () => {
     if (screen.focused !== list || !state.selectedId) return;
     const id = state.selectedId;
     try {
@@ -277,34 +333,78 @@ export async function run(cwd) {
       if (result.action === 'add') {
         setStatus(`Adding dep: ${id} → ${result.targetId} [${result.type}]…`);
         await applyMutation(id, () => bdDepAdd(id, result.targetId, result.type, state.cwd));
-        setStatus(`Added: ${id} → ${result.targetId} [${result.type}]`);
+        setStatus(`Added: ${id} → ${result.targetId} [${result.type}]`, false, true);
       } else {
         setStatus(`Removing dep: ${id} → ${result.targetId}…`);
         await applyMutation(id, () => bdDepRemove(id, result.targetId, state.cwd));
-        setStatus(`Removed dep: ${id} → ${result.targetId}`);
+        setStatus(`Removed dep: ${id} → ${result.targetId}`, false, true);
       }
       renderDetail(detail);
       screen.render();
     } catch (err) {
       list.focus();
-      if (err.message !== 'cancelled') setStatus(err.message, true);
+      if (err.message !== 'cancelled') setStatus(err.message, true, true);
     }
   });
 
-  screen.key(['y'], () => {
+  async function copyToClipboard(text, { okMsg, busyMsg } = {}) {
+    setStatus(busyMsg || `Copying…`);
+    const write = (cmd, args) => new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (err) => { if (!settled) { settled = true; err ? reject(err) : resolve(); } };
+      const p = execFile(cmd, args, (err) => finish(err || null));
+      p.on('error', finish);
+      if (p.stdin) {
+        p.stdin.once('finish', () => setTimeout(() => finish(null), 100));
+        p.stdin.end(text);
+      }
+    });
+    const candidates = process.platform === 'win32'
+      ? [['clip', []]]
+      : [
+          ['wl-copy', []],
+          ['xclip', ['-selection', 'clipboard']],
+          ['xsel', ['--clipboard', '--input']],
+          ['pbcopy', []],
+        ];
+    for (const [cmd, args] of candidates) {
+      try {
+        await write(cmd, args);
+        setStatus(okMsg || `Copied`, false, true);
+        return;
+      } catch {}
+    }
+    const hint = process.platform === 'win32'
+      ? 'clip.exe missing'
+      : 'install wl-clipboard, xclip, or xsel';
+    setStatus(`clipboard unavailable — ${hint}`, true, true);
+  }
+
+  key(['y'], () => {
     const id = state.selectedId;
     if (!id) return;
-    const write = (cmd, args) => new Promise((res) => {
-      const p = execFile(cmd, args, res);
-      p.stdin?.end(id);
-    });
-    write('wl-copy', [])
-      .catch(() => write('xclip', ['-selection', 'clipboard']))
-      .catch(() => write('xsel', ['--clipboard', '--input']))
-      .catch(() => write('pbcopy', []))
-      .then((err) => {
-        setStatus(err ? `${id} (clipboard unavailable)` : `Copied ${id}`);
+    copyToClipboard(id, { busyMsg: `Copying ${id}…`, okMsg: `Copied ${id}` });
+  });
+
+  key(['w'], async () => {
+    if (screen.focused !== list || !state.selectedId) return;
+    const id = state.selectedId;
+    const bead = state.beadsById.get(id);
+    if (bead?.issue_type === 'epic') {
+      setStatus(`${id} is an epic — workflow skills apply to tasks only`, true, true);
+      return;
+    }
+    try {
+      const line = await skillPicker(screen, id);
+      list.focus();
+      await copyToClipboard(line, {
+        busyMsg: `Copying ${line}…`,
+        okMsg: `Copied: ${line}`,
       });
+    } catch (err) {
+      list.focus();
+      if (err.message !== 'cancelled') setStatus(err.message, true, true);
+    }
   });
 
   // ── Boot ───────────────────────────────────────────────────────────────────

@@ -2,11 +2,18 @@
 
 Fast blessed-based terminal UI for the [`bd`](https://github.com/gastownhall/beads) beads issue tracker.
 
+![bdtui screenshot](docs/images/bdtui.png)
+
 ## Requirements
 
 - Node ≥ 20
 - `bd` installed and on `$PATH`
 - A project with a `.beads/` database (created by `bd init`)
+- (Optional) A clipboard helper for the `y` yank key:
+  - Linux/Wayland: `wl-clipboard` (`sudo apt install wl-clipboard`)
+  - Linux/X11: `xclip` (`sudo apt install xclip`) or `xsel`
+  - macOS: `pbcopy` (preinstalled)
+  - Windows: `clip.exe` (preinstalled on Windows 10/11)
 
 ## Install
 
@@ -72,6 +79,7 @@ be-12  P2 ready   T  └ Another child
 | `p` | Change priority |
 | `D` | Dependency menu (add / remove) |
 | `y` | Yank bead ID to clipboard |
+| `w` | Pick a workflow skill (`/executor-task`, `/executor-task-worktree`, `/executor-epic-task`, `/executor-epic-task-worktree`) and copy it with the selected task's ID. Disabled for epics. |
 | `?` | Help overlay |
 | `q` / `Ctrl-C` | Quit |
 

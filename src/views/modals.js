@@ -1,6 +1,6 @@
 import blessed from 'blessed';
 
-function listPicker(screen, label, items, borderColor = 'cyan') {
+function listPicker(screen, label, items, borderColor = 'cyan', width = 36, left = 'center') {
   return new Promise((resolve, reject) => {
     const height = Math.min(items.length + 4, 20);
     const picker = blessed.list({
@@ -8,8 +8,8 @@ function listPicker(screen, label, items, borderColor = 'cyan') {
       label: ` ${label} `,
       border: { type: 'line' },
       top: 'center',
-      left: 'center',
-      width: 36,
+      left,
+      width,
       height,
       items,
       keys: true,
@@ -85,6 +85,16 @@ export function textPrompt(screen, label, defaultVal = '') {
 
     screen.render();
   });
+}
+
+export function skillPicker(screen, beadId) {
+  const items = [
+    `/executor-task ${beadId}`,
+    `/executor-task-worktree ${beadId}`,
+    `/executor-epic-task ${beadId}`,
+    `/executor-epic-task-worktree ${beadId}`,
+  ];
+  return listPicker(screen, 'Copy workflow command', items, 'magenta', 56, 1);
 }
 
 const DEP_TYPES = [

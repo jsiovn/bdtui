@@ -2,12 +2,25 @@ import { bdList, bdShow, bdDeps, bdDepListDown } from './bd.js';
 
 export const state = {
   beadsById: new Map(),
+  fullTreeItems: [],   // unfiltered ordered tree items (before typeFilter)
   listOrder: [],
   treeMeta: new Map(), // id -> { depth: 0|1, isLast: bool }
   selectedId: null,
   filter: 'ready',
+  typeFilter: 'all',   // 'all' | 'epic' | 'task'
   cwd: process.cwd(),
 };
+
+export function applyTypeFilter() {
+  let items = state.fullTreeItems;
+  if (state.typeFilter !== 'all') {
+    items = items
+      .filter((t) => state.beadsById.get(t.id)?.issue_type === state.typeFilter)
+      .map((t) => ({ id: t.id, depth: 0, isLast: false }));
+  }
+  state.listOrder = items.map((t) => t.id);
+  state.treeMeta = new Map(items.map((t) => [t.id, { depth: t.depth, isLast: t.isLast }]));
+}
 
 function buildTreeOrder(beads, parentOf) {
   const byId = new Map(beads.map((b) => [b.id, b]));
@@ -73,13 +86,12 @@ export async function loadList() {
     }
   }
 
-  const treeItems = buildTreeOrder(beads, parentOf);
-  state.listOrder = treeItems.map((t) => t.id);
-  state.treeMeta = new Map(treeItems.map((t) => [t.id, { depth: t.depth, isLast: t.isLast }]));
-
   for (const b of beads) {
     state.beadsById.set(b.id, { ...state.beadsById.get(b.id), ...b });
   }
+
+  state.fullTreeItems = buildTreeOrder(beads, parentOf);
+  applyTypeFilter();
   return beads;
 }
 

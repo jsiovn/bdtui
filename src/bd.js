@@ -14,6 +14,7 @@ async function runBd(args, cwd) {
 
 export const bdList = (filter, cwd) => {
   if (filter === 'ready') return runBd(['ready', '--json'], cwd);
+  if (filter === 'blocked') return runBd(['blocked', '--json'], cwd);
   const args = ['list', '--json'];
   if (filter === 'all') args.push('--all');
   else if (filter) args.push('--status', filter);
