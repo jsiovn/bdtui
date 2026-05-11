@@ -79,7 +79,7 @@ be-12  P2 ready   T  └ Another child
 | `p` | Change priority |
 | `D` | Dependency menu (add / remove) |
 | `y` | Yank bead ID to clipboard |
-| `w` | Pick a workflow skill (`/executor-task`, `/executor-task-worktree`, `/executor-epic-task`, `/executor-epic-task-worktree`) and copy it with the selected task's ID. Disabled for epics. |
+| `w` | Pick a workflow skill (`/executor-task`, `/executor-task-worktree`, `/executor-epic-task`, `/executor-epic-task-worktree`) and copy it with the selected task's ID. Disabled for epics. See [workflow-template](https://github.com/jsiovn/workflow-template). |
 | `?` | Help overlay |
 | `q` / `Ctrl-C` | Quit |
 
