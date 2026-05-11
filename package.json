@@ -12,6 +12,14 @@
     "README.md",
     "CHANGELOG.md"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jsiovn/bdtui.git"
+  },
+  "homepage": "https://github.com/jsiovn/bdtui#readme",
+  "bugs": {
+    "url": "https://github.com/jsiovn/bdtui/issues"
+  },
   "author": "JSIOVN",
   "license": "MIT",
   "engines": {
