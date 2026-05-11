@@ -2,7 +2,7 @@
 
 Fast blessed-based terminal UI for the [`bd`](https://github.com/gastownhall/beads) beads issue tracker.
 
-![bdtui screenshot](docs/images/bdtui.png)
+![bdtui screenshot](https://raw.githubusercontent.com/jsiovn/bdtui/master/docs/images/bdtui.png)
 
 ## Requirements
 
