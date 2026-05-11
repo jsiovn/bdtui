@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] - 2026-05-11
+
+### Added
+
+- `repository`, `homepage`, and `bugs` fields in package.json — GitHub link now visible on npmjs.com
+
 ## [0.2.1] - 2026-05-11
 
 ### Fixed
