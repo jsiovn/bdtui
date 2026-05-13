@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.3] - 2026-05-13
+
+### Added
+
+- `bdtui -v` / `bdtui --version` prints the current version and exits
+
 ## [0.2.2] - 2026-05-11
 
 ### Added
