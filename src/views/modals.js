@@ -93,6 +93,7 @@ export function skillPicker(screen, beadId) {
     `/executor-task-worktree ${beadId}`,
     `/executor-epic-task ${beadId}`,
     `/executor-epic-task-worktree ${beadId}`,
+    `/executor-rework-in-place ${beadId}`,
   ];
   return listPicker(screen, 'Copy workflow command', items, 'magenta', 56, 1);
 }
