@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-05-15
+
+### Added
+
+- `e` shortcut: filter the list by epic via a modal picker; selecting an epic scopes the view to that epic and its children, with an option to clear the filter
+
 ## [0.2.3] - 2026-05-13
 
 ### Added
