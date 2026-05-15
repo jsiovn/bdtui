@@ -8,11 +8,33 @@ export const state = {
   selectedId: null,
   filter: 'ready',
   typeFilter: 'all',   // 'all' | 'epic' | 'task'
+  epicFilter: null,    // null or epic bead id — when set, list is scoped to that epic + its children
   cwd: process.cwd(),
 };
 
+function scopeToEpic(items, epicId) {
+  const out = [];
+  let inside = false;
+  for (const it of items) {
+    if (it.depth === 0) {
+      inside = it.id === epicId;
+      if (inside) out.push(it);
+    } else if (inside) {
+      out.push(it);
+    }
+  }
+  // Fix isLast on the last child after scoping (cheap, optional polish).
+  for (let i = out.length - 1; i >= 0; i--) {
+    if (out[i].depth > 0) { out[i] = { ...out[i], isLast: true }; break; }
+  }
+  return out;
+}
+
 export function applyTypeFilter() {
   let items = state.fullTreeItems;
+  if (state.epicFilter) {
+    items = scopeToEpic(items, state.epicFilter);
+  }
   if (state.typeFilter !== 'all') {
     items = items
       .filter((t) => state.beadsById.get(t.id)?.issue_type === state.typeFilter)

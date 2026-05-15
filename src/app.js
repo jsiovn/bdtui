@@ -3,9 +3,9 @@ import { execFile } from 'child_process';
 import { state, loadList, loadDetail, applyMutation, applyTypeFilter } from './state.js';
 import { createList, renderList } from './views/list.js';
 import { createDetail, renderDetail } from './views/detail.js';
-import { statusPicker, priorityPicker, textPrompt, depMenu, skillPicker } from './views/modals.js';
+import { statusPicker, priorityPicker, textPrompt, depMenu, skillPicker, epicPicker } from './views/modals.js';
 import { showHelp } from './keys.js';
-import { bdUpdate, bdClose, bdClaim, bdReopen, bdDepAdd, bdDepRemove } from './bd.js';
+import { bdUpdate, bdClose, bdClaim, bdReopen, bdDepAdd, bdDepRemove, bdEpics } from './bd.js';
 
 const FILTERS = ['blocked', 'ready', 'in_progress', 'closed', 'all'];
 const TYPE_FILTERS = ['all', 'epic', 'task'];
@@ -63,9 +63,12 @@ export async function run(cwd) {
     });
     const count = state.listOrder.length;
     const typeLabel = state.typeFilter === 'all' ? 'all' : `${state.typeFilter} only`;
-    const typeInfo = `  {gray-fg}│{/}  {yellow-fg}filter:{/} ${typeLabel}`;
+    const typeInfo = `  {gray-fg}│{/}  {yellow-fg}type:{/} ${typeLabel}`;
+    const epicInfo = state.epicFilter
+      ? `  {gray-fg}│{/}  {magenta-fg}epic:{/} ${state.epicFilter}`
+      : '';
     const info  = count > 0 ? `{gray-fg}  │  ${count} beads{/}` : '';
-    tabBar.setContent(tabs.join('{gray-fg}│{/}') + typeInfo + info);
+    tabBar.setContent(tabs.join('{gray-fg}│{/}') + typeInfo + epicInfo + info);
   }
 
   function setFocusBorder(focused) {
@@ -186,6 +189,49 @@ export async function run(cwd) {
   key(['tab'], () => cycleFilter(1));
   key(['S-tab'], () => cycleFilter(-1));
   key(['t'], cycleTypeFilter);
+
+  key(['e'], async () => {
+    if (screen.focused !== list) return;
+    setStatus('Loading epics…');
+    let epics;
+    try {
+      epics = await bdEpics(state.cwd);
+    } catch (err) {
+      setStatus(err.message, true, true);
+      return;
+    }
+    setStatus(defaultStatus());
+    let picked;
+    try {
+      picked = await epicPicker(screen, epics, state.epicFilter);
+    } catch {
+      list.focus();
+      return;
+    }
+    list.focus();
+    state.epicFilter = picked;
+    if (picked) {
+      state.filter = 'all';
+      setStatus(`Epic: ${picked} — loading…`);
+      try {
+        await loadList();
+      } catch (err) {
+        setStatus(err.message, true, true);
+        return;
+      }
+    } else {
+      applyTypeFilter();
+    }
+    state.selectedId = state.listOrder[0] || null;
+    if (state.selectedId) {
+      try { await loadDetail(state.selectedId); } catch (err) {
+        setStatus(err.message, true, true);
+        return;
+      }
+    }
+    render();
+    setStatus(picked ? `Epic: ${picked}` : 'Epic filter cleared', false, true);
+  });
 
   key(['?'], () => {
     modalOpen = true;

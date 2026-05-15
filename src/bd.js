@@ -67,3 +67,8 @@ export const bdDepRemove = (child, parent, cwd) =>
 
 // Returns all children of an epic (all statuses — bd children includes closed by default)
 export const bdChildren = (id, cwd) => runBd(['children', id, '--json'], cwd);
+
+export const bdEpics = async (cwd) => {
+  const all = await runBd(['list', '--all', '--json'], cwd);
+  return Array.isArray(all) ? all.filter((b) => b.issue_type === 'epic') : [];
+};

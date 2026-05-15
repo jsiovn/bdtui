@@ -16,6 +16,7 @@ export const HELP_TEXT = [
   '  Tab         Next status filter (blocked/ready/in_progress/closed/all)',
   '  Shift+Tab   Previous status filter',
   '  t           Cycle type filter (all/epic/task)',
+  '  e           Filter by epic (modal picker; switches status to all)',
   '  r           Reload current filter from bd',
   '  /           In-memory title filter',
   '',

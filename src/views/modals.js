@@ -87,6 +87,80 @@ export function textPrompt(screen, label, defaultVal = '') {
   });
 }
 
+const CLEAR_FILTER_TAG = '__clear__';
+
+export function epicPicker(screen, epics, currentEpicId = null) {
+  return new Promise((resolve, reject) => {
+    const sorted = [...epics].sort((a, b) => a.id.localeCompare(b.id));
+    const rows = [];
+    const ids = [];
+
+    if (currentEpicId) {
+      rows.push('{yellow-fg}✗ Clear epic filter{/}');
+      ids.push(CLEAR_FILTER_TAG);
+    }
+
+    for (const e of sorted) {
+      const marker = e.id === currentEpicId ? '{cyan-fg}●{/} ' : '  ';
+      const id = e.id.padEnd(12);
+      const title = (e.title || '').slice(0, 60);
+      rows.push(`${marker}{gray-fg}${id}{/} ${title}`);
+      ids.push(e.id);
+    }
+
+    if (rows.length === 0) {
+      rows.push('{gray-fg}(no epics found){/}');
+      ids.push(null);
+    }
+
+    const width = 72;
+    const height = Math.min(rows.length + 4, Math.max(8, screen.height - 4));
+
+    const picker = blessed.list({
+      parent: screen,
+      label: ' Filter by Epic ',
+      border: { type: 'line' },
+      top: 'center',
+      left: 'center',
+      width,
+      height,
+      items: rows,
+      keys: true,
+      vi: true,
+      tags: true,
+      scrollbar: { ch: ' ', track: { bg: 'black' }, style: { bg: 'magenta' } },
+      style: {
+        selected: { bg: 'blue', fg: 'white', bold: true },
+        border: { fg: 'magenta' },
+        label: { fg: 'magenta', bold: true },
+      },
+    });
+
+    // Select current epic by default if set
+    if (currentEpicId) {
+      const idx = ids.indexOf(currentEpicId);
+      if (idx >= 0) picker.select(idx);
+    }
+
+    picker.focus();
+    screen.render();
+
+    picker.once('select', (_item, index) => {
+      const picked = ids[index];
+      picker.destroy();
+      screen.render();
+      if (picked === null) return reject(new Error('cancelled'));
+      resolve(picked === CLEAR_FILTER_TAG ? null : picked);
+    });
+
+    picker.key(['escape', 'q'], () => {
+      picker.destroy();
+      screen.render();
+      reject(new Error('cancelled'));
+    });
+  });
+}
+
 export function skillPicker(screen, beadId) {
   const items = [
     `/executor-task ${beadId}`,
