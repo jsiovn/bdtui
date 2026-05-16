@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1] - 2026-05-16
+
+### Added
+
+- Auto-start Dolt on launch: `bdtui` runs `bd dolt test` and falls back to `bd dolt start` if the project's Dolt server is down, so the TUI no longer opens against a dead backend. Skipped for `-v`/`--version`.
+
 ## [0.3.0] - 2026-05-15
 
 ### Added
