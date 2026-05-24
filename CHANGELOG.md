@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.2] - 2026-05-24
+
+### Changed
+
+- Detail-pane dependency rows redesigned: status-colored icons (○ open, ◐ in_progress, ● blocked, ✓ closed, ❄ deferred) with the whole row tinted by effective status. Open beads whose blockers aren't all closed now render as blocked, mirroring how `bd blocked` derives the Blocked tab.
+
 ## [0.3.1] - 2026-05-16
 
 ### Added

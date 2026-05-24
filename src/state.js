@@ -9,6 +9,7 @@ export const state = {
   filter: 'ready',
   typeFilter: 'all',   // 'all' | 'epic' | 'task'
   epicFilter: null,    // null or epic bead id — when set, list is scoped to that epic + its children
+  blockedIds: new Set(), // ids that appear in `bd blocked` — derived state, not raw status
   cwd: process.cwd(),
 };
 
@@ -76,7 +77,11 @@ function buildTreeOrder(beads, parentOf) {
 }
 
 export async function loadList() {
-  const beads = await bdList(state.filter, state.cwd);
+  const [beads, blocked] = await Promise.all([
+    bdList(state.filter, state.cwd),
+    bdList('blocked', state.cwd).catch(() => []),
+  ]);
+  state.blockedIds = new Set((blocked || []).map((b) => b.id));
   const byId = new Map(beads.map((b) => [b.id, b]));
 
   // Build parent-child map from real bd deps (dependency_type === 'parent-child').

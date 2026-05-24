@@ -5,6 +5,22 @@ const STATUS_COLOR = {
   open: 'white', in_progress: 'cyan', blocked: 'red',
   deferred: 'yellow', closed: 'gray',
 };
+
+// Dep-row palette: tuned for at-a-glance scanning in the dependency list.
+//   open / ready → green   (go)
+//   in_progress  → yellow  (active)
+//   blocked      → red     (stop)
+//   deferred     → gray    (parked)
+//   closed       → gray    (done, recede)
+const DEP_STATUS_COLOR = {
+  open: 'green', in_progress: 'yellow', blocked: 'red',
+  deferred: 'gray', closed: 'gray',
+};
+
+const STATUS_ICON = {
+  open: '○', in_progress: '◐', blocked: '●',
+  closed: '✓', deferred: '❄',
+};
 const PRIORITY_COLOR  = ['red', 'yellow', 'green', 'cyan', 'gray'];
 const PRIORITY_LABEL  = ['Critical', 'High', 'Normal', 'Low', 'Trivial'];
 
@@ -30,11 +46,26 @@ function sectionHeader(title) {
   return `\n${bold(t('cyan', title))}\n${t('gray', '─'.repeat(44))}`;
 }
 
-function depLine(dep, arrow, color) {
-  const id    = esc(dep.id || String(dep));
-  const type  = esc(dep.dep_type || dep.type || 'blocks');
-  const title = dep.title ? ` ${t('gray', '— ' + esc(dep.title))}` : '';
-  return `  ${t(color, arrow)} {bold}${id}{/bold} ${t('gray', `[${type}]`)}${title}`;
+function depLine(dep) {
+  const rawId    = esc(dep.id || String(dep));
+  const rawTitle = dep.title ? esc(dep.title) : '';
+  const issueType = dep.issue_type ? esc(dep.issue_type) : null;
+
+  // Effective status mirrors how `bd blocked` derives the Blocked tab:
+  // an open bead whose blockers aren't all closed reads as "blocked",
+  // not "open". `bd dep list` only returns the raw stored status.
+  const effectiveStatus = (dep.status === 'open' && state.blockedIds.has(dep.id))
+    ? 'blocked'
+    : dep.status;
+
+  const statusColor = DEP_STATUS_COLOR[effectiveStatus] || 'white';
+  const icon      = STATUS_ICON[effectiveStatus] || ' ';
+  const idText    = `{bold}${rawId}{/bold}`;
+  const typeTag   = issueType ? ` [${issueType}]` : '';
+  const titleText = rawTitle ? ` — ${rawTitle}` : '';
+
+  const row = `${icon} ${idText}${typeTag}${titleText}`;
+  return `  {${statusColor}-fg}${row}{/${statusColor}-fg}`;
 }
 
 // Apply inline markdown styling to already-escaped text. Order matters:
@@ -153,11 +184,11 @@ export function renderDetail(box) {
   // ── Dependencies ───────────────────────────────────────────────────────────
   if (b.depsDown?.length > 0) {
     lines.push(sectionHeader(`Depends on (${b.depsDown.length})`));
-    for (const d of b.depsDown) lines.push(depLine(d, '→', 'yellow'));
+    for (const d of b.depsDown) lines.push(depLine(d));
   }
   if (b.depsUp?.length > 0) {
     lines.push(sectionHeader(`Needed by (${b.depsUp.length})`));
-    for (const d of b.depsUp) lines.push(depLine(d, '←', 'green'));
+    for (const d of b.depsUp) lines.push(depLine(d));
   }
 
   // ── Description ────────────────────────────────────────────────────────────
