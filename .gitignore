@@ -1,34 +1,15 @@
 node_modules/
 
 # Dolt database files (added by bd init)
-.dolt/
-*.db
+
+.beads/export-state.json
 
 # BEGIN TEMPLATE AGENT WORKFLOW LOCAL-ONLY
-.beads/workflow/
-.beads/PRIME.md
-.beads/.gitignore
-.beads/README.md
-.codex/skills/
-.codex/agents/
-.claude/skills/
-.claude/agents/
-AGENTS.md
-BEADS_WORKFLOW.md
-CLAUDE.md
+.beads-credential-key
+.beads/interactions.jsonl
+.bv/
+.dolt/
+*.db
 docs/plans/
-docs/TROUBLESHOOTING.md
-scripts/posix/agent-mail.sh
-scripts/posix/restore-workflow-backup.sh
-scripts/posix/sync-workflow-backup.sh
-scripts/posix/workflow-status.sh
-scripts/shared/agent_mail.py
-scripts/shared/manage_instructions.py
-scripts/shared/sync_workflow_backup.py
-scripts/shared/workflow_backup.py
-scripts/shared/__pycache__/
-scripts/windows/agent-mail.ps1
-scripts/windows/restore-workflow-backup.ps1
-scripts/windows/sync-workflow-backup.ps1
-scripts/windows/workflow-status.ps1
+.beads/epic-runs
 # END TEMPLATE AGENT WORKFLOW LOCAL-ONLY

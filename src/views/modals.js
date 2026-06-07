@@ -91,7 +91,15 @@ const CLEAR_FILTER_TAG = '__clear__';
 
 export function epicPicker(screen, epics, currentEpicId = null) {
   return new Promise((resolve, reject) => {
-    const sorted = [...epics].sort((a, b) => a.id.localeCompare(b.id));
+    // Newest epics on top: sort by created_at descending (ISO-8601 UTC strings
+    // sort lexicographically in chronological order). Fall back to id for ties
+    // or missing timestamps.
+    const sorted = [...epics].sort((a, b) => {
+      const ta = a.created_at || '';
+      const tb = b.created_at || '';
+      if (ta !== tb) return tb.localeCompare(ta);
+      return b.id.localeCompare(a.id);
+    });
     const rows = [];
     const ids = [];
 

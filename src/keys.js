@@ -19,6 +19,7 @@ export const HELP_TEXT = [
   '  e           Filter by epic (modal picker; switches status to all)',
   '  r           Reload current filter from bd',
   '  /           In-memory title filter',
+  '  (all & closed tabs load more rows as you scroll to the bottom)',
   '',
   '  Mutations',
   '  ──────────────────────────────────────',

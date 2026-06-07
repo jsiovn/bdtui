@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-06-07
+
+### Added
+
+- Lazy pagination for the `all` and `closed` tabs: every bead loads in a single `bd` call (flat, no per-bead dependency fetch) and rows are revealed in batches as you scroll to the bottom, with a "showing X of Y" count. This lifts the previous silent 50-row cap so the full history is reachable. `G` jumps to the true bottom; `/` searches the whole list.
+
+### Changed
+
+- Epic filter picker now lists the most recently created epics first.
+
+### Fixed
+
+- `stdout maxBuffer length exceeded` error when a `bd list` payload exceeded 1 MB (e.g. the `all` tab on a large repo) — the output buffer is now 64 MB.
+- Epic filter picker could miss epics beyond the first 50 results; it now enumerates all epics.
+
 ## [0.3.2] - 2026-05-24
 
 ### Changed

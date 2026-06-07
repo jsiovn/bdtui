@@ -3,23 +3,32 @@ import { promisify } from 'util';
 
 const execFileP = promisify(execFile);
 
+// Default execFile maxBuffer is 1MB; bd JSON output (esp. `list --all` with many
+// closed beads) can exceed that and throw "stdout maxBuffer length exceeded".
+const MAX_BUFFER = 64 * 1024 * 1024; // 64MB
+
 async function runBd(args, cwd) {
   try {
-    const { stdout } = await execFileP('bd', args, { cwd });
+    const { stdout } = await execFileP('bd', args, { cwd, maxBuffer: MAX_BUFFER });
     return JSON.parse(stdout);
   } catch (err) {
     throw new Error(err.stderr?.trim() || err.message);
   }
 }
 
-export const bdList = (filter, cwd) => {
+export const bdList = (filter, cwd, { unlimited = false } = {}) => {
   if (filter === 'ready') return runBd(['ready', '--json'], cwd);
   if (filter === 'blocked') return runBd(['blocked', '--json'], cwd);
   const args = ['list', '--json'];
   if (filter === 'all') args.push('--all');
   else if (filter) args.push('--status', filter);
+  // `--limit 0` lifts bd's default 50-row cap for the paginated flat views.
+  if (unlimited) args.push('--limit', '0');
   return runBd(args, cwd);
 };
+
+// bdList('all') with the 50-row cap lifted — used for enumerating every epic.
+export const bdListAll = (cwd) => bdList('all', cwd, { unlimited: true });
 
 export const bdShow = async (id, cwd) => {
   const res = await runBd(['show', id, '--json'], cwd);
@@ -69,6 +78,6 @@ export const bdDepRemove = (child, parent, cwd) =>
 export const bdChildren = (id, cwd) => runBd(['children', id, '--json'], cwd);
 
 export const bdEpics = async (cwd) => {
-  const all = await runBd(['list', '--all', '--json'], cwd);
+  const all = await bdListAll(cwd);
   return Array.isArray(all) ? all.filter((b) => b.issue_type === 'epic') : [];
 };

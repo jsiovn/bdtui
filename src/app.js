@@ -1,6 +1,6 @@
 import blessed from 'blessed';
 import { execFile } from 'child_process';
-import { state, loadList, loadDetail, applyMutation, applyTypeFilter } from './state.js';
+import { state, loadList, loadDetail, applyMutation, applyTypeFilter, isPaged, ensureSelectedVisible } from './state.js';
 import { createList, renderList } from './views/list.js';
 import { createDetail, renderDetail } from './views/detail.js';
 import { statusPicker, priorityPicker, textPrompt, depMenu, skillPicker, epicPicker } from './views/modals.js';
@@ -88,9 +88,23 @@ export async function run(cwd) {
     screen.render();
   }
 
+  // Lazy "load more": the paged tabs (all / closed) load every bead but render
+  // them pageSize at a time; reveal the next batch once selection reaches the
+  // last visible row (infinite-scroll style).
+  function maybeLoadMore() {
+    if (!isPaged()) return;
+    if (state.visibleCount >= state.listOrder.length) return;
+    if (list.selected < state.visibleCount - 1) return;
+    state.visibleCount = Math.min(state.visibleCount + state.pageSize, state.listOrder.length);
+    renderList(list);
+    setStatus(`Showing ${state.visibleCount} of ${state.listOrder.length}`, false, true);
+    screen.render();
+  }
+
   // When list selection changes, update selectedId and debounce detail fetch
   function onNav() {
     setImmediate(() => {
+      maybeLoadMore();
       const idx = list.selected;
       const id = state.listOrder[idx];
       if (!id || id === state.selectedId) return;
@@ -125,6 +139,7 @@ export async function run(cwd) {
       if (state.selectedId && !state.listOrder.includes(state.selectedId)) {
         state.selectedId = state.listOrder[0] || null;
       }
+      ensureSelectedVisible();
       if (state.selectedId) await loadDetail(state.selectedId);
       render();
       setStatus('Ready');
@@ -158,6 +173,7 @@ export async function run(cwd) {
     } else if (!state.selectedId) {
       state.selectedId = state.listOrder[0] || null;
     }
+    ensureSelectedVisible();
     render();
     if (state.selectedId) {
       try {
@@ -259,6 +275,11 @@ export async function run(cwd) {
 
   key(['G'], () => {
     if (screen.focused !== list) return;
+    // Jump to the true bottom — in paged mode reveal every remaining batch first.
+    if (isPaged() && state.visibleCount < state.listOrder.length) {
+      state.visibleCount = state.listOrder.length;
+      renderList(list);
+    }
     list.select(state.listOrder.length - 1);
     onNav();
     screen.render();
@@ -275,6 +296,9 @@ export async function run(cwd) {
         const b = state.beadsById.get(id);
         return b?.title?.toLowerCase().includes(q);
       });
+      state.visibleCount = isPaged()
+        ? Math.min(state.pageSize, state.listOrder.length)
+        : state.listOrder.length;
       state.selectedId = state.listOrder[0] || null;
       renderList(list);
       renderDetail(detail);
@@ -315,6 +339,10 @@ export async function run(cwd) {
       setStatus(`Closing ${id}…`);
       await applyMutation(id, () => bdClose(id, reason, state.cwd));
       await loadList();
+      if (state.selectedId && !state.listOrder.includes(state.selectedId)) {
+        state.selectedId = state.listOrder[0] || null;
+      }
+      ensureSelectedVisible();
       render();
       setStatus(`Closed ${id}`, false, true);
     } catch (err) {
@@ -345,6 +373,10 @@ export async function run(cwd) {
     try {
       await applyMutation(id, () => bdReopen(id, state.cwd));
       await loadList();
+      if (state.selectedId && !state.listOrder.includes(state.selectedId)) {
+        state.selectedId = state.listOrder[0] || null;
+      }
+      ensureSelectedVisible();
       render();
       setStatus(`Reopened ${id}`, false, true);
     } catch (err) {

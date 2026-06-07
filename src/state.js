@@ -10,8 +10,31 @@ export const state = {
   typeFilter: 'all',   // 'all' | 'epic' | 'task'
   epicFilter: null,    // null or epic bead id — when set, list is scoped to that epic + its children
   blockedIds: new Set(), // ids that appear in `bd blocked` — derived state, not raw status
+  pageSize: 100,        // lazy "load more" batch size for the flat all view
+  visibleCount: 0,     // how many of listOrder are currently rendered (paged mode)
   cwd: process.cwd(),
 };
+
+// The "all" and "closed" tabs (no epic filter) can hold huge numbers of beads,
+// so they use a flat, lazily-revealed list; every other view loads fully and
+// renders the epic→children tree.
+export function isPaged() {
+  return (state.filter === 'all' || state.filter === 'closed') && !state.epicFilter;
+}
+
+// Paged mode only renders the first visibleCount rows. After a reload that keeps
+// a deep selection, grow the window (to its batch boundary) so the selected bead
+// stays rendered — otherwise the cursor and state.selectedId desync and mutation
+// keys would act on an off-screen bead. Call AFTER selectedId is finalized.
+export function ensureSelectedVisible() {
+  if (!isPaged() || !state.selectedId) return;
+  const idx = state.listOrder.indexOf(state.selectedId);
+  if (idx < state.visibleCount) return;
+  state.visibleCount = Math.min(
+    state.listOrder.length,
+    Math.ceil((idx + 1) / state.pageSize) * state.pageSize,
+  );
+}
 
 function scopeToEpic(items, epicId) {
   const out = [];
@@ -43,6 +66,9 @@ export function applyTypeFilter() {
   }
   state.listOrder = items.map((t) => t.id);
   state.treeMeta = new Map(items.map((t) => [t.id, { depth: t.depth, isLast: t.isLast }]));
+  state.visibleCount = isPaged()
+    ? Math.min(state.pageSize, state.listOrder.length)
+    : state.listOrder.length;
 }
 
 function buildTreeOrder(beads, parentOf) {
@@ -76,7 +102,26 @@ function buildTreeOrder(beads, parentOf) {
   return ordered;
 }
 
+// Flat load for the paged tabs ("all" / "closed"). Skips the per-bead
+// parent-child dep fetch (which spawns one bd subprocess per bead) and the tree
+// build, so even very large repos load in a single bd call; the UI reveals rows
+// in pageSize batches.
+async function loadListFlat() {
+  const [beads, blocked] = await Promise.all([
+    bdList(state.filter, state.cwd, { unlimited: true }),
+    bdList('blocked', state.cwd).catch(() => []),
+  ]);
+  state.blockedIds = new Set((blocked || []).map((b) => b.id));
+  for (const b of beads) {
+    state.beadsById.set(b.id, { ...state.beadsById.get(b.id), ...b });
+  }
+  state.fullTreeItems = beads.map((b) => ({ id: b.id, depth: 0, isLast: false }));
+  applyTypeFilter();
+  return beads;
+}
+
 export async function loadList() {
+  if (isPaged()) return loadListFlat();
   const [beads, blocked] = await Promise.all([
     bdList(state.filter, state.cwd),
     bdList('blocked', state.cwd).catch(() => []),

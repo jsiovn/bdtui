@@ -67,17 +67,28 @@ export function createList(screen) {
 }
 
 export function renderList(list) {
-  const items = state.listOrder.map((id) => {
+  const total = state.listOrder.length;
+  // In paged ("load more") mode only the first visibleCount rows are rendered;
+  // everything else renders the full list.
+  const shown = state.visibleCount > 0 && state.visibleCount < total
+    ? state.visibleCount
+    : total;
+  const ids = state.listOrder.slice(0, shown);
+
+  const items = ids.map((id) => {
     const b = state.beadsById.get(id);
     const { depth = 0, isLast = false } = state.treeMeta.get(id) ?? {};
     return b ? formatRow(b, depth, isLast) : t('gray', id);
   });
 
   const selIdx = state.selectedId
-    ? Math.max(0, state.listOrder.indexOf(state.selectedId))
+    ? Math.max(0, ids.indexOf(state.selectedId))
     : 0;
 
-  list.setLabel(` Beads ${t('gray', `(${state.listOrder.length})`)} `);
+  const label = shown < total
+    ? ` Beads ${t('gray', `(showing ${shown} of ${total})`)} `
+    : ` Beads ${t('gray', `(${total})`)} `;
+  list.setLabel(label);
   list.setItems(items);
-  if (state.listOrder.length > 0) list.select(selIdx);
+  if (ids.length > 0) list.select(Math.min(selIdx, ids.length - 1));
 }
