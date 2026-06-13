@@ -166,6 +166,12 @@ export function epicPicker(screen, epics, currentEpicId = null) {
       screen.render();
       reject(new Error('cancelled'));
     });
+
+    picker.key(['x'], () => {
+      picker.destroy();
+      screen.render();
+      resolve(null);
+    });
   });
 }
 
@@ -180,26 +186,62 @@ export function skillPicker(screen, beadId) {
   return listPicker(screen, 'Copy workflow command', items, 'magenta', 56, 1);
 }
 
-const DEP_TYPES = [
-  'blocks', 'tracks', 'related', 'relates-to',
-  'validates', 'caused-by', 'parent-child',
-];
+export function parentPicker(screen, epics, { selfId, currentParentId } = {}) {
+  return new Promise((resolve, reject) => {
+    const sorted = [...epics]
+      .filter((e) => e.id !== selfId && e.id !== currentParentId)
+      .sort((a, b) => {
+        const ta = a.updated_at || '', tb = b.updated_at || '';
+        if (ta !== tb) return tb.localeCompare(ta);
+        return b.id.localeCompare(a.id);
+      });
 
-export async function depMenu(screen) {
-  const action = await listPicker(
-    screen,
-    'Dependency',
-    ['Add dep', 'Remove dep'],
-    'magenta',
-  );
+    const rows = ['{yellow-fg}Standalone bead{/}'];
+    const ids = [null];
 
-  const targetId = await textPrompt(screen, 'Target bead ID');
-  if (!targetId) throw new Error('cancelled');
+    for (const e of sorted) {
+      const id = e.id.padEnd(12);
+      const title = (e.title || '').slice(0, 60);
+      rows.push(`{gray-fg}${id}{/} ${title}`);
+      ids.push(e.id);
+    }
 
-  if (action === 'Add dep') {
-    const type = await listPicker(screen, 'Dep type', DEP_TYPES, 'magenta');
-    return { action: 'add', targetId, type };
-  }
+    const width = 72;
+    const height = Math.min(rows.length + 4, Math.max(8, screen.height - 4));
 
-  return { action: 'remove', targetId };
+    const picker = blessed.list({
+      parent: screen,
+      label: ' Change Parent ',
+      border: { type: 'line' },
+      top: 'center',
+      left: 'center',
+      width,
+      height,
+      items: rows,
+      keys: true,
+      vi: true,
+      tags: true,
+      scrollbar: { ch: ' ', track: { bg: 'black' }, style: { bg: 'magenta' } },
+      style: {
+        selected: { bg: 'blue', fg: 'white', bold: true },
+        border: { fg: 'magenta' },
+        label: { fg: 'magenta', bold: true },
+      },
+    });
+
+    picker.focus();
+    screen.render();
+
+    picker.once('select', (_item, index) => {
+      picker.destroy();
+      screen.render();
+      resolve(ids[index]);
+    });
+
+    picker.key(['escape', 'q'], () => {
+      picker.destroy();
+      screen.render();
+      reject(new Error('cancelled'));
+    });
+  });
 }

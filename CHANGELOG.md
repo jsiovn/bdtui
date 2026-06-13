@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+## [0.5.0] - 2026-06-13
+
+### Added
+
+- `h` key: dedicated parent-picker to reparent a bead under a different epic or detach it as standalone (epics listed newest-updated-first; current parent excluded).
+- `chore` and `bug` added to the `t` type-filter cycle (`all → epic → task → chore → bug → all`).
+- `x` key in the epic-filter picker clears the filter immediately (same as selecting ✗ Clear).
+
+### Changed
+
+- All tabs now sort beads by `updated_at` DESC (most-recently-touched first), preserving the epic→children tree grouping for tree tabs and ordering children within each epic the same way.
+- `r` (reload) now also clears any active epic filter before reloading; status bar shows "Epic filter cleared" when it does.
+
+### Removed
+
+- `D` dependency menu — replaced by the focused `h` reparent picker.
+
 ## [0.4.0] - 2026-06-07
 
 ### Added

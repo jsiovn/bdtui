@@ -1,5 +1,11 @@
 import { bdList, bdShow, bdDeps, bdDepListDown } from './bd.js';
 
+function byUpdatedDesc(a, b) {
+  const ta = a?.updated_at || '', tb = b?.updated_at || '';
+  if (ta !== tb) return tb.localeCompare(ta);
+  return (b?.id || '').localeCompare(a?.id || '');
+}
+
 export const state = {
   beadsById: new Map(),
   fullTreeItems: [],   // unfiltered ordered tree items (before typeFilter)
@@ -62,6 +68,7 @@ export function applyTypeFilter() {
   if (state.typeFilter !== 'all') {
     items = items
       .filter((t) => state.beadsById.get(t.id)?.issue_type === state.typeFilter)
+      .sort((x, y) => byUpdatedDesc(state.beadsById.get(x.id), state.beadsById.get(y.id)))
       .map((t) => ({ id: t.id, depth: 0, isLast: false }));
   }
   state.listOrder = items.map((t) => t.id);
@@ -84,11 +91,12 @@ function buildTreeOrder(beads, parentOf) {
   }
 
   for (const children of childrenOf.values()) {
-    children.sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2) || a.id.localeCompare(b.id));
+    children.sort(byUpdatedDesc);
   }
 
   const childIds = new Set([...childrenOf.values()].flat().map((b) => b.id));
   const roots = beads.filter((b) => !childIds.has(b.id));
+  roots.sort(byUpdatedDesc);
 
   const ordered = [];
   for (const root of roots) {
@@ -115,6 +123,7 @@ async function loadListFlat() {
   for (const b of beads) {
     state.beadsById.set(b.id, { ...state.beadsById.get(b.id), ...b });
   }
+  beads.sort(byUpdatedDesc);
   state.fullTreeItems = beads.map((b) => ({ id: b.id, depth: 0, isLast: false }));
   applyTypeFilter();
   return beads;

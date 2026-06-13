@@ -3,12 +3,12 @@ import { execFile } from 'child_process';
 import { state, loadList, loadDetail, applyMutation, applyTypeFilter, isPaged, ensureSelectedVisible } from './state.js';
 import { createList, renderList } from './views/list.js';
 import { createDetail, renderDetail } from './views/detail.js';
-import { statusPicker, priorityPicker, textPrompt, depMenu, skillPicker, epicPicker } from './views/modals.js';
+import { statusPicker, priorityPicker, textPrompt, parentPicker, skillPicker, epicPicker } from './views/modals.js';
 import { showHelp } from './keys.js';
-import { bdUpdate, bdClose, bdClaim, bdReopen, bdDepAdd, bdDepRemove, bdEpics } from './bd.js';
+import { bdUpdate, bdClose, bdClaim, bdReopen, bdDepAdd, bdDepRemove, bdDepListDown, bdEpics } from './bd.js';
 
 const FILTERS = ['blocked', 'ready', 'in_progress', 'closed', 'all'];
-const TYPE_FILTERS = ['all', 'epic', 'task'];
+const TYPE_FILTERS = ['all', 'epic', 'task', 'chore', 'bug'];
 
 export async function run(cwd) {
   state.cwd = cwd;
@@ -201,7 +201,12 @@ export async function run(cwd) {
 
   key(['q', 'C-c'], () => { screen.destroy(); process.exit(0); });
 
-  key(['r'], refresh);
+  key(['r'], async () => {
+    const wasEpic = !!state.epicFilter;
+    state.epicFilter = null;
+    await refresh();
+    if (wasEpic) setStatus('Epic filter cleared', false, true);
+  });
   key(['tab'], () => cycleFilter(1));
   key(['S-tab'], () => cycleFilter(-1));
   key(['t'], cycleTypeFilter);
@@ -262,8 +267,61 @@ export async function run(cwd) {
     if (screen.focused === list) { setFocusBorder('detail'); detail.focus(); screen.render(); }
   });
 
-  key(['h', 'escape'], () => {
+  key(['escape'], () => {
     if (screen.focused !== list) { setFocusBorder('list'); list.focus(); screen.render(); }
+  });
+
+  key(['h'], async () => {
+    if (screen.focused === detail) { setFocusBorder('list'); list.focus(); screen.render(); return; }
+    if (screen.focused !== list) return;
+    if (!state.selectedId) return;
+    const id = state.selectedId;
+    const bead = state.beadsById.get(id);
+    if (bead?.issue_type === 'epic') {
+      setStatus(`${id} is an epic — epics are top-level`, true, true);
+      return;
+    }
+    setStatus('Loading parents…');
+    let epics, downDeps;
+    try {
+      [epics, downDeps] = await Promise.all([bdEpics(state.cwd), bdDepListDown(id, state.cwd)]);
+    } catch (err) {
+      setStatus(err.message, true, true);
+      return;
+    }
+    const currentParentId = downDeps.find((d) => d.dependency_type === 'parent-child')?.id ?? null;
+    let newParent;
+    try {
+      newParent = await parentPicker(screen, epics, { selfId: id, currentParentId });
+    } catch (err) {
+      list.focus();
+      if (err.message !== 'cancelled') setStatus(err.message, true, true);
+      return;
+    }
+    list.focus();
+    setStatus(`Reparenting ${id}…`);
+    try {
+      await applyMutation(id, async () => {
+        if (newParent) {
+          await bdDepAdd(id, newParent, 'parent-child', state.cwd);
+          if (currentParentId && currentParentId !== newParent) {
+            await bdDepRemove(id, currentParentId, state.cwd);
+          }
+        } else if (currentParentId) {
+          await bdDepRemove(id, currentParentId, state.cwd);
+        }
+      });
+      await loadList();
+      ensureSelectedVisible();
+      render();
+      setStatus(
+        newParent ? `Reparented ${id} → ${newParent}` : `${id} is now standalone`,
+        false,
+        true,
+      );
+    } catch (err) {
+      setStatus(err.message, true, true);
+    }
   });
 
   key(['g'], () => {
@@ -396,29 +454,6 @@ export async function run(cwd) {
       renderDetail(detail);
       screen.render();
       setStatus(`${id}: priority → ${priority}`, false, true);
-    } catch (err) {
-      list.focus();
-      if (err.message !== 'cancelled') setStatus(err.message, true, true);
-    }
-  });
-
-  key(['D'], async () => {
-    if (screen.focused !== list || !state.selectedId) return;
-    const id = state.selectedId;
-    try {
-      const result = await depMenu(screen);
-      list.focus();
-      if (result.action === 'add') {
-        setStatus(`Adding dep: ${id} → ${result.targetId} [${result.type}]…`);
-        await applyMutation(id, () => bdDepAdd(id, result.targetId, result.type, state.cwd));
-        setStatus(`Added: ${id} → ${result.targetId} [${result.type}]`, false, true);
-      } else {
-        setStatus(`Removing dep: ${id} → ${result.targetId}…`);
-        await applyMutation(id, () => bdDepRemove(id, result.targetId, state.cwd));
-        setStatus(`Removed dep: ${id} → ${result.targetId}`, false, true);
-      }
-      renderDetail(detail);
-      screen.render();
     } catch (err) {
       list.focus();
       if (err.message !== 'cancelled') setStatus(err.message, true, true);
