@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-06-14
+
+### Fixed
+
+- Blocked tab now also lists beads whose status was explicitly set to `blocked`. Previously it ran only `bd blocked` (which returns *derived*-blocked beads — open beads with unclosed blockers), so explicitly-blocked beads were missing from the tab; the filter now merges `bd blocked` with `bd list --status blocked`.
+- List rows for open beads that are derived-blocked now show the `blocked` status label and color, matching the detail view's effective-status logic.
+
 ## [0.5.0] - 2026-06-13
 
 ### Added

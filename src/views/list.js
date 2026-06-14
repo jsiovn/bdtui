@@ -31,7 +31,12 @@ function t(color, text) {
 function formatRow(bead, depth = 0, isLast = false) {
   const id   = bead.id.padEnd(14);
   const p    = `P${bead.priority ?? 2}`;
-  const stat = bead.status || 'open';
+  // Effective status mirrors how `bd blocked` derives the Blocked tab:
+  // an open bead whose blockers aren't all closed reads as "blocked",
+  // not "open". The raw `bd list` rows only carry the stored status.
+  const stat = (bead.status === 'open' && state.blockedIds.has(bead.id))
+    ? 'blocked'
+    : (bead.status || 'open');
   const s    = (STATUS_SHORT[stat] || stat.slice(0, 7)).padEnd(7);
   const badge = TYPE_BADGE[bead.issue_type] ?? t('gray', '?');
   const prefix = depth > 0 ? t('gray', isLast ? ' └ ' : ' ├ ') : '   ';

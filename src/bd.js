@@ -16,9 +16,24 @@ async function runBd(args, cwd) {
   }
 }
 
+// `bd blocked` only returns *derived*-blocked beads (open beads whose blockers
+// aren't all closed); it omits beads whose status was explicitly set to
+// "blocked". The Blocked tab should show both, so merge the two sources, deduped.
+async function bdBlocked(cwd) {
+  const [derived, explicit] = await Promise.all([
+    runBd(['blocked', '--json'], cwd).catch(() => []),
+    runBd(['list', '--status', 'blocked', '--json', '--limit', '0'], cwd).catch(() => []),
+  ]);
+  const byId = new Map();
+  for (const b of [...(derived || []), ...(explicit || [])]) {
+    if (b?.id && !byId.has(b.id)) byId.set(b.id, b);
+  }
+  return [...byId.values()];
+}
+
 export const bdList = (filter, cwd, { unlimited = false } = {}) => {
   if (filter === 'ready') return runBd(['ready', '--json'], cwd);
-  if (filter === 'blocked') return runBd(['blocked', '--json'], cwd);
+  if (filter === 'blocked') return bdBlocked(cwd);
   const args = ['list', '--json'];
   if (filter === 'all') args.push('--all');
   else if (filter) args.push('--status', filter);
