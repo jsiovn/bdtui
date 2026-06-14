@@ -22,8 +22,8 @@ export const state = {
 };
 
 // The "all" and "closed" tabs (no epic filter) can hold huge numbers of beads,
-// so they use a flat, lazily-revealed list; every other view loads fully and
-// renders the epic→children tree.
+// so they reveal rows lazily in pageSize batches; every other view renders its
+// rows all at once. All tabs build the same epic→children tree (see loadList).
 export function isPaged() {
   return (state.filter === 'all' || state.filter === 'closed') && !state.epicFilter;
 }
@@ -80,22 +80,33 @@ export function applyTypeFilter() {
 
 function buildTreeOrder(beads, parentOf) {
   const byId = new Map(beads.map((b) => [b.id, b]));
-  const childrenOf = new Map();
+  // A bead is a root when it has no parent present in this bead set (epics and
+  // standalone beads). The tree is intentionally two levels deep — epics on top,
+  // their direct children indented under them.
+  const isRoot = (id) => {
+    const pid = parentOf.get(id);
+    return !pid || !byId.has(pid);
+  };
 
+  const childrenOf = new Map();
+  const roots = [];
   for (const b of beads) {
     const pid = parentOf.get(b.id);
-    if (pid && byId.has(pid)) {
+    // Nest a bead only when its parent is itself a root. Anything else — no
+    // parent, a parent filtered out of this view, or a parent that is itself
+    // nested (deeper than two levels) — renders at the top level so no bead is
+    // ever silently dropped from the list.
+    if (pid && byId.has(pid) && isRoot(pid)) {
       if (!childrenOf.has(pid)) childrenOf.set(pid, []);
       childrenOf.get(pid).push(b);
+    } else {
+      roots.push(b);
     }
   }
 
   for (const children of childrenOf.values()) {
     children.sort(byUpdatedDesc);
   }
-
-  const childIds = new Set([...childrenOf.values()].flat().map((b) => b.id));
-  const roots = beads.filter((b) => !childIds.has(b.id));
   roots.sort(byUpdatedDesc);
 
   const ordered = [];
@@ -110,50 +121,47 @@ function buildTreeOrder(beads, parentOf) {
   return ordered;
 }
 
-// Flat load for the paged tabs ("all" / "closed"). Skips the per-bead
-// parent-child dep fetch (which spawns one bd subprocess per bead) and the tree
-// build, so even very large repos load in a single bd call; the UI reveals rows
-// in pageSize batches.
-async function loadListFlat() {
-  const [beads, blocked] = await Promise.all([
-    bdList(state.filter, state.cwd, { unlimited: true }),
-    bdList('blocked', state.cwd).catch(() => []),
-  ]);
-  state.blockedIds = new Set((blocked || []).map((b) => b.id));
-  for (const b of beads) {
-    state.beadsById.set(b.id, { ...state.beadsById.get(b.id), ...b });
-  }
-  beads.sort(byUpdatedDesc);
-  state.fullTreeItems = beads.map((b) => ({ id: b.id, depth: 0, isLast: false }));
-  applyTypeFilter();
-  return beads;
-}
-
 export async function loadList() {
-  if (isPaged()) return loadListFlat();
+  const paged = isPaged();
   const [beads, blocked] = await Promise.all([
-    bdList(state.filter, state.cwd),
+    // Paged tabs (all / closed) lift bd's 50-row cap; rows are still revealed in
+    // pageSize batches by the renderer.
+    bdList(state.filter, state.cwd, { unlimited: paged }),
     bdList('blocked', state.cwd).catch(() => []),
   ]);
   state.blockedIds = new Set((blocked || []).map((b) => b.id));
   const byId = new Map(beads.map((b) => [b.id, b]));
 
-  // Build parent-child map from real bd deps (dependency_type === 'parent-child').
-  // Fetch only for non-epic beads — epics don't have epic parents in this model.
-  const candidates = beads.filter((b) => b.issue_type !== 'epic');
-  const depLists = await Promise.all(
-    candidates.map((b) => bdDepListDown(b.id, state.cwd))
-  );
-
+  // Parent-child relationships come straight from the `parent` field bd embeds in
+  // every list row (the target of the bead's parent-child dependency). This is
+  // the same data `bd dep list` returns, so the tree builds from the single
+  // `bd list` call above — no per-bead subprocess fan-out, even on huge repos.
   const parentOf = new Map();
-  candidates.forEach((b, i) => {
-    const pc = depLists[i].find((d) => d.dependency_type === 'parent-child');
-    if (pc?.id) parentOf.set(b.id, pc.id);
-  });
+  for (const b of beads) {
+    if (b.parent && b.parent !== b.id) parentOf.set(b.id, b.parent);
+  }
+
+  // The Blocked tab merges in `bd blocked` (derived-blocked) rows, and that
+  // command — unlike `bd list` — omits the `parent` field entirely. Recover the
+  // parent for those rows with a dep-list lookup. Scoped to the blocked filter
+  // (the only parent-less source) and to non-epic rows without an embedded
+  // parent, so it stays a handful of calls on an already-small view.
+  if (state.filter === 'blocked') {
+    const needsLookup = beads.filter((b) => !('parent' in b) && b.issue_type !== 'epic');
+    const depLists = await Promise.all(
+      needsLookup.map((b) => bdDepListDown(b.id, state.cwd))
+    );
+    needsLookup.forEach((b, i) => {
+      const pc = depLists[i].find((d) => d.dependency_type === 'parent-child');
+      if (pc?.id && pc.id !== b.id) parentOf.set(b.id, pc.id);
+    });
+  }
 
   // Bring in parent epics that aren't already in the filtered list so the tree
   // can root under them. Only add the epic itself, NOT its other children —
-  // that's what caused closed beads to leak into ready/open filters.
+  // that's what caused closed beads to leak into ready/open filters. Skipped for
+  // "all", which already contains every bead. The fetch is bounded by the number
+  // of distinct missing parents (≈ epic count), not the bead count.
   if (state.filter !== 'all') {
     const missingParents = [...new Set(parentOf.values())].filter((id) => !byId.has(id));
     const fetched = await Promise.all(

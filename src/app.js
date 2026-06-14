@@ -354,6 +354,11 @@ export async function run(cwd) {
         const b = state.beadsById.get(id);
         return b?.title?.toLowerCase().includes(q);
       });
+      // A title-search result set is no longer a tree, so flatten every surviving
+      // row to depth 0 — otherwise a matched child whose parent was filtered out
+      // renders as an orphan indented under a branch glyph (mirrors how
+      // applyTypeFilter flattens the type-filtered list).
+      state.treeMeta = new Map(state.listOrder.map((id) => [id, { depth: 0, isLast: false }]));
       state.visibleCount = isPaged()
         ? Math.min(state.pageSize, state.listOrder.length)
         : state.listOrder.length;

@@ -1,6 +1,6 @@
 {
   "name": "bdtui",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Terminal UI for the bd beads issue tracker",
   "type": "module",
   "bin": {

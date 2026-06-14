@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-14
+
+### Fixed
+
+- The **Closed** and **All** tabs now render the epic→children tree like the other tabs; previously they showed a flat, ungrouped list with every bead at the top level. Closed children nest under their epic (parent epics that aren't themselves closed are pulled in as the grouping anchor).
+
+### Changed
+
+- Tree views now build from the `parent` field that `bd` embeds in each `bd list`/`bd ready` row instead of fetching one `bd dep list` per bead. The Closed/All tabs gain the tree at no extra per-bead subprocess cost (lazy "load more" pagination is unchanged), and the Ready/Blocked/In-progress tabs load with fewer `bd` calls. The Blocked tab keeps a per-row `bd dep list` fallback for the derived-blocked rows `bd blocked` returns without a `parent` field.
+
 ## [0.5.1] - 2026-06-14
 
 ### Fixed
