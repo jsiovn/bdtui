@@ -282,9 +282,19 @@ export async function run(cwd) {
     setStatus(defaultStatus());
   });
 
-  key(['?'], () => {
+  // '?' toggles the help modal. Registered directly (NOT through key(), which
+  // swallows every global while a modal is open) so the same key that opens the
+  // help can also close it. Driving open AND close from this one handler — kept
+  // out of showHelp's own close keys — avoids re-entrancy: a separate '?' close
+  // binding would fire on the very keypress that registered it and slam the
+  // modal shut again. closeHelp is non-null exactly while the help is open.
+  let closeHelp = null;
+  screen.key(['?'], () => {
+    if (closeHelp) { closeHelp(); return; }
+    if (modalOpen) return; // another modal (a picker) owns the screen
     modalOpen = true;
-    showHelp(screen, () => {
+    closeHelp = showHelp(screen, () => {
+      closeHelp = null;
       modalOpen = false;
       list.focus();
       screen.render();
@@ -564,5 +574,7 @@ export async function run(cwd) {
     setStatus(err.message, true);
   }
   render();
-  setStatus('Ready | ? help');
+  // setStatus already appends "? help · q quit"; defaultStatus() yields "Ready"
+  // (or the active-filter summary) without duplicating the help hint.
+  setStatus(defaultStatus());
 }

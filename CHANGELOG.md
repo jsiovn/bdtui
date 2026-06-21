@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-06-21
+
+### Fixed
+
+- The **Keybindings** (`?`) help can now be dismissed after a mouse click moves focus to the Beads list or Detail pane. Its close keys were bound to the help box itself, so once a click stole focus the modal became unclosable (every global key is suppressed while a modal is open). `q`/`Esc`/`h` are now bound at the screen level and dismiss it regardless of which pane holds focus.
+- Reopening the Keybindings help with `?` works again. `?` is now a single open/close toggle, fixing a re-entrancy where the freshly-registered `?` close handler fired on the very keypress that opened the modal and slammed it shut.
+- The boot status bar no longer shows the `? help` hint twice. `setStatus` already appends it, so the redundant hint baked into the "Ready" message was removed.
+
 ## [0.7.0] - 2026-06-21
 
 ### Added

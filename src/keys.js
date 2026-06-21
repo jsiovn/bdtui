@@ -65,11 +65,34 @@ export function showHelp(screen, onClose) {
   box.focus();
   screen.render();
 
+  // '?' is deliberately NOT a close key here — the caller (app.js) drives it as
+  // an open/close toggle. Binding '?' as a close key would re-enter on the very
+  // keypress that opens the modal: the toggle adds this listener mid-dispatch
+  // and blessed's emitter would then fire it in the same 'key ?' pass, slamming
+  // the help shut the instant it opened. q/Esc/h are safe — they never open the
+  // help, so they can only ever close it.
+  const CLOSE_KEYS = ['q', 'escape', 'h'];
+  let closed = false;
   const close = () => {
+    if (closed) return;
+    closed = true;
+    screen.unkey(CLOSE_KEYS, close);
     box.destroy();
     screen.render();
     onClose?.();
   };
 
-  box.key(['?', 'q', 'escape', 'h'], close);
+  // Bind the close keys on the screen, not the box. A box-level binding only
+  // fires while the box holds keyboard focus, but the Beads list and Detail
+  // pane are both mouse:true — a click on either steals focus from the help
+  // box. app.js suppresses every global key while a modal is open, so a
+  // focus-stealing click would otherwise leave the help permanently stuck
+  // open (its own close keys dead, every global key inert). Screen-level keys
+  // fire regardless of which pane holds focus, so q/Esc/h always dismiss it.
+  // unkey() on close keeps the binding from leaking across repeated opens.
+  screen.key(CLOSE_KEYS, close);
+
+  // Returned so the caller's '?' toggle can dismiss the help regardless of
+  // which pane currently holds focus.
+  return close;
 }
