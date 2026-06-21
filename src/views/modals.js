@@ -186,10 +186,11 @@ export function skillPicker(screen, beadId) {
   return listPicker(screen, 'Copy workflow command', items, 'magenta', 56, 1);
 }
 
-export function parentPicker(screen, epics, { selfId, currentParentId } = {}) {
+export function parentPicker(screen, epics, { selfId, currentParentIds = [] } = {}) {
   return new Promise((resolve, reject) => {
+    const exclude = new Set([selfId, ...currentParentIds]);
     const sorted = [...epics]
-      .filter((e) => e.id !== selfId && e.id !== currentParentId)
+      .filter((e) => !exclude.has(e.id))
       .sort((a, b) => {
         const ta = a.updated_at || '', tb = b.updated_at || '';
         if (ta !== tb) return tb.localeCompare(ta);

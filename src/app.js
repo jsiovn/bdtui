@@ -1,6 +1,6 @@
 import blessed from 'blessed';
 import { execFile } from 'child_process';
-import { state, loadList, loadDetail, applyMutation, applyTypeFilter, isPaged, ensureSelectedVisible } from './state.js';
+import { state, loadList, loadDetail, applyMutation, applyFilters, isPaged, ensureSelectedVisible } from './state.js';
 import { createList, renderList } from './views/list.js';
 import { createDetail, renderDetail } from './views/detail.js';
 import { statusPicker, priorityPicker, textPrompt, parentPicker, skillPicker, epicPicker } from './views/modals.js';
@@ -9,6 +9,11 @@ import { bdUpdate, bdClose, bdClaim, bdReopen, bdDepAdd, bdDepRemove, bdDepListD
 
 const FILTERS = ['blocked', 'ready', 'in_progress', 'closed', 'all'];
 const TYPE_FILTERS = ['all', 'epic', 'task', 'chore', 'bug'];
+
+// Neutralize blessed tag markup in free text before it lands in a tags:true
+// box (mirrors esc() in views/detail.js). The title search is user-typed, so a
+// query like "{bold}" would otherwise corrupt the status line.
+const escTags = (s) => String(s ?? '').replace(/\{/g, '{open}').replace(/\}/g, '{close}');
 
 export async function run(cwd) {
   state.cwd = cwd;
@@ -38,8 +43,19 @@ export async function run(cwd) {
   let debounceTimer = null;
 
   let statusTimer = null;
+  // Describe every active narrowing filter (title search, epic scope, type) in
+  // one line with the result count and reset hint. Returns null when none are
+  // active so the caller can fall back to a plain "Ready".
+  function filterSummary() {
+    const parts = [];
+    if (state.textFilter) parts.push(`"${escTags(state.textFilter)}"`);
+    if (state.epicFilter) parts.push(`epic: ${state.epicFilter}`);
+    if (state.typeFilter !== 'all') parts.push(`type: ${state.typeFilter}`);
+    if (parts.length === 0) return null;
+    return `${parts.join('  ·  ')} — ${state.listOrder.length} results | Shift+r to reset`;
+  }
   function defaultStatus() {
-    return state.filter ? `Filter: ${state.filter}` : 'Ready';
+    return filterSummary() || 'Ready';
   }
   function setStatus(msg, isError = false, transient = false) {
     if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
@@ -67,8 +83,11 @@ export async function run(cwd) {
     const epicInfo = state.epicFilter
       ? `  {gray-fg}│{/}  {magenta-fg}epic:{/} ${state.epicFilter}`
       : '';
+    const textInfo = state.textFilter
+      ? `  {gray-fg}│{/}  {green-fg}search:{/} "${escTags(state.textFilter)}"`
+      : '';
     const info  = count > 0 ? `{gray-fg}  │  ${count} beads{/}` : '';
-    tabBar.setContent(tabs.join('{gray-fg}│{/}') + typeInfo + epicInfo + info);
+    tabBar.setContent(tabs.join('{gray-fg}│{/}') + typeInfo + epicInfo + textInfo + info);
   }
 
   function setFocusBorder(focused) {
@@ -142,7 +161,7 @@ export async function run(cwd) {
       ensureSelectedVisible();
       if (state.selectedId) await loadDetail(state.selectedId);
       render();
-      setStatus('Ready');
+      setStatus(defaultStatus());
     } catch (err) {
       setStatus(err.message, true, true);
     }
@@ -158,7 +177,7 @@ export async function run(cwd) {
       state.selectedId = state.listOrder[0] || null;
       if (state.selectedId) await loadDetail(state.selectedId);
       render();
-      setStatus(`Filter: ${state.filter}`);
+      setStatus(defaultStatus());
     } catch (err) {
       setStatus(err.message, true, true);
     }
@@ -167,7 +186,7 @@ export async function run(cwd) {
   async function cycleTypeFilter() {
     const idx = TYPE_FILTERS.indexOf(state.typeFilter);
     state.typeFilter = TYPE_FILTERS[(idx + 1) % TYPE_FILTERS.length];
-    applyTypeFilter();
+    applyFilters();
     if (state.selectedId && !state.listOrder.includes(state.selectedId)) {
       state.selectedId = state.listOrder[0] || null;
     } else if (!state.selectedId) {
@@ -185,7 +204,7 @@ export async function run(cwd) {
         return;
       }
     }
-    setStatus(`Type: ${state.typeFilter}`, false, true);
+    setStatus(defaultStatus());
   }
 
   // ── Global keys ────────────────────────────────────────────────────────────
@@ -201,11 +220,20 @@ export async function run(cwd) {
 
   key(['q', 'C-c'], () => { screen.destroy(); process.exit(0); });
 
+  // r reloads data while preserving every active filter; Shift+r clears all
+  // narrowing filters (title search, epic scope, type) and reloads fresh.
+  // blessed reports a shifted letter as `S-<lower>` (never bare uppercase), so
+  // the binding must be 'S-r' — 'R' would be dead. Same for S-c / S-g below.
   key(['r'], async () => {
-    const wasEpic = !!state.epicFilter;
-    state.epicFilter = null;
     await refresh();
-    if (wasEpic) setStatus('Epic filter cleared', false, true);
+  });
+  key(['S-r'], async () => {
+    const had = !!(state.textFilter || state.epicFilter || state.typeFilter !== 'all');
+    state.textFilter = null;
+    state.epicFilter = null;
+    state.typeFilter = 'all';
+    await refresh();
+    if (had) setStatus('Filters reset', false, true);
   });
   key(['tab'], () => cycleFilter(1));
   key(['S-tab'], () => cycleFilter(-1));
@@ -241,7 +269,7 @@ export async function run(cwd) {
         return;
       }
     } else {
-      applyTypeFilter();
+      applyFilters();
     }
     state.selectedId = state.listOrder[0] || null;
     if (state.selectedId) {
@@ -251,7 +279,7 @@ export async function run(cwd) {
       }
     }
     render();
-    setStatus(picked ? `Epic: ${picked}` : 'Epic filter cleared', false, true);
+    setStatus(defaultStatus());
   });
 
   key(['?'], () => {
@@ -289,10 +317,15 @@ export async function run(cwd) {
       setStatus(err.message, true, true);
       return;
     }
-    const currentParentId = downDeps.find((d) => d.dependency_type === 'parent-child')?.id ?? null;
+    // A bead should have at most one parent, but a prior bug could leave it with
+    // several parent-child deps — collect them all so we can clear every one.
+    const currentParentIds = downDeps
+      .filter((d) => d.dependency_type === 'parent-child')
+      .map((d) => d.id)
+      .filter(Boolean);
     let newParent;
     try {
-      newParent = await parentPicker(screen, epics, { selfId: id, currentParentId });
+      newParent = await parentPicker(screen, epics, { selfId: id, currentParentIds });
     } catch (err) {
       list.focus();
       if (err.message !== 'cancelled') setStatus(err.message, true, true);
@@ -302,13 +335,13 @@ export async function run(cwd) {
     setStatus(`Reparenting ${id}…`);
     try {
       await applyMutation(id, async () => {
-        if (newParent) {
+        // Detach every existing parent first so the bead is never left with two
+        // parents, then attach the chosen one (skip if it's already a parent).
+        for (const pid of currentParentIds) {
+          if (pid !== newParent) await bdDepRemove(id, pid, state.cwd);
+        }
+        if (newParent && !currentParentIds.includes(newParent)) {
           await bdDepAdd(id, newParent, 'parent-child', state.cwd);
-          if (currentParentId && currentParentId !== newParent) {
-            await bdDepRemove(id, currentParentId, state.cwd);
-          }
-        } else if (currentParentId) {
-          await bdDepRemove(id, currentParentId, state.cwd);
         }
       });
       await loadList();
@@ -331,7 +364,7 @@ export async function run(cwd) {
     screen.render();
   });
 
-  key(['G'], () => {
+  key(['S-g'], () => {
     if (screen.focused !== list) return;
     // Jump to the true bottom — in paged mode reveal every remaining batch first.
     if (isPaged() && state.visibleCount < state.listOrder.length) {
@@ -346,27 +379,20 @@ export async function run(cwd) {
   key(['/'], async () => {
     if (screen.focused !== list) return;
     try {
-      const query = await textPrompt(screen, 'Filter by title');
+      // Pre-fill with the active search so it can be edited; an empty submit
+      // clears the title filter (other filters stay put).
+      const query = await textPrompt(screen, 'Filter by title', state.textFilter || '');
       list.focus();
-      if (!query) { render(); return; }
-      const q = query.toLowerCase();
-      state.listOrder = state.listOrder.filter((id) => {
-        const b = state.beadsById.get(id);
-        return b?.title?.toLowerCase().includes(q);
-      });
-      // A title-search result set is no longer a tree, so flatten every surviving
-      // row to depth 0 — otherwise a matched child whose parent was filtered out
-      // renders as an orphan indented under a branch glyph (mirrors how
-      // applyTypeFilter flattens the type-filtered list).
-      state.treeMeta = new Map(state.listOrder.map((id) => [id, { depth: 0, isLast: false }]));
-      state.visibleCount = isPaged()
-        ? Math.min(state.pageSize, state.listOrder.length)
-        : state.listOrder.length;
-      state.selectedId = state.listOrder[0] || null;
+      state.textFilter = query || null;
+      applyFilters();
+      if (!state.selectedId || !state.listOrder.includes(state.selectedId)) {
+        state.selectedId = state.listOrder[0] || null;
+      }
+      ensureSelectedVisible();
       renderList(list);
       renderDetail(detail);
       screen.render();
-      setStatus(`"${query}" — ${state.listOrder.length} results | r to reset`);
+      setStatus(defaultStatus());
     } catch {
       list.focus();
     }
@@ -414,7 +440,7 @@ export async function run(cwd) {
     }
   });
 
-  key(['C'], async () => {
+  key(['S-c'], async () => {
     if (screen.focused !== list || !state.selectedId) return;
     const id = state.selectedId;
     setStatus(`Claiming ${id}…`);

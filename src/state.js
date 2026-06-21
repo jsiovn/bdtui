@@ -15,6 +15,7 @@ export const state = {
   filter: 'ready',
   typeFilter: 'all',   // 'all' | 'epic' | 'task'
   epicFilter: null,    // null or epic bead id — when set, list is scoped to that epic + its children
+  textFilter: null,    // null or lowercase-matched title substring (in-memory)
   blockedIds: new Set(), // ids that appear in `bd blocked` — derived state, not raw status
   pageSize: 100,        // lazy "load more" batch size for the flat all view
   visibleCount: 0,     // how many of listOrder are currently rendered (paged mode)
@@ -60,7 +61,11 @@ function scopeToEpic(items, epicId) {
   return out;
 }
 
-export function applyTypeFilter() {
+// Apply every active narrowing filter (epic → type → text) to fullTreeItems and
+// rebuild listOrder/treeMeta. Kept in one place so a reload (`r`) can replay the
+// same filters and the status bar can describe them. Filters compose: an epic
+// scope, a type filter, and a title search can all be active at once.
+export function applyFilters() {
   let items = state.fullTreeItems;
   if (state.epicFilter) {
     items = scopeToEpic(items, state.epicFilter);
@@ -69,6 +74,15 @@ export function applyTypeFilter() {
     items = items
       .filter((t) => state.beadsById.get(t.id)?.issue_type === state.typeFilter)
       .sort((x, y) => byUpdatedDesc(state.beadsById.get(x.id), state.beadsById.get(y.id)))
+      .map((t) => ({ id: t.id, depth: 0, isLast: false }));
+  }
+  if (state.textFilter) {
+    const q = state.textFilter.toLowerCase();
+    // A title-search result set is no longer a tree, so flatten every surviving
+    // row to depth 0 — otherwise a matched child whose parent was filtered out
+    // renders as an orphan indented under a branch glyph.
+    items = items
+      .filter((t) => state.beadsById.get(t.id)?.title?.toLowerCase().includes(q))
       .map((t) => ({ id: t.id, depth: 0, isLast: false }));
   }
   state.listOrder = items.map((t) => t.id);
@@ -122,11 +136,15 @@ function buildTreeOrder(beads, parentOf) {
 }
 
 export async function loadList() {
-  const paged = isPaged();
+  // The all/closed tabs lift bd's 50-row cap so the full tree is available; the
+  // renderer still reveals rows in pageSize batches (see isPaged). This is keyed
+  // off the tab itself, NOT isPaged(): an epic filter makes isPaged() false but
+  // we still need every bead fetched so scopeToEpic can find the epic's children
+  // (otherwise reloading while epic-scoped would silently drop children past
+  // row 50).
+  const unlimited = state.filter === 'all' || state.filter === 'closed';
   const [beads, blocked] = await Promise.all([
-    // Paged tabs (all / closed) lift bd's 50-row cap; rows are still revealed in
-    // pageSize batches by the renderer.
-    bdList(state.filter, state.cwd, { unlimited: paged }),
+    bdList(state.filter, state.cwd, { unlimited }),
     bdList('blocked', state.cwd).catch(() => []),
   ]);
   state.blockedIds = new Set((blocked || []).map((b) => b.id));
@@ -180,7 +198,7 @@ export async function loadList() {
   }
 
   state.fullTreeItems = buildTreeOrder(beads, parentOf);
-  applyTypeFilter();
+  applyFilters();
   return beads;
 }
 

@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-21
+
+### Added
+
+- `Shift+r`: reset all narrowing filters (title search, epic scope, type) and reload fresh.
+- The status bar now summarizes every active narrowing filter together — e.g. `"login"  ·  epic: bd-12  ·  type: task — 3 results | Shift+r to reset` — instead of only the most recent one. The epic filter now shows the same result-count/reset hint that title search did.
+- The tab bar gains a persistent `search:` indicator for the active title filter, alongside the existing `type:` and `epic:` indicators.
+
+### Changed
+
+- `r` (reload) now **keeps** active filters instead of clearing the epic filter; use `Shift+r` to clear filters. This reverses the `0.5.0` behavior where `r` cleared the epic filter.
+- The `/` title filter is now persistent state: it survives a reload (`r`) and composes with the epic and type filters. The prompt pre-fills with the current search, and submitting an empty value clears just the title filter.
+
+### Fixed
+
+- `Shift+c` (claim) and `Shift+g` (jump to bottom) now actually fire. They were registered as bare uppercase `C`/`G`, but blessed reports a shifted letter as `S-<lower>`, so the handlers were dead — claim did nothing and `Shift+g` only reached the last *loaded* page instead of revealing all rows and jumping to the true bottom.
+- Reloading or filtering while scoped to an epic on the **All**/**Closed** tabs no longer caps the fetch at bd's default 50 rows, which could drop an epic's children from the scoped view.
+- The title search is now tag-escaped before it reaches the status bar, so a query containing `{`/`}` no longer corrupts the status line.
+- Reparenting with `h` no longer throws `Unexpected token '✓' … is not valid JSON`. `bd dep add`/`bd dep remove` print a human-readable line rather than JSON, so their output is no longer parsed as JSON.
+- `h` (change parent) now **detaches every existing parent first, then attaches** the chosen one — previously it added the new parent before removing the old, so the JSON error above left the bead with two parents. It also clears *all* existing parent-child links (not just the first), repairing beads that already ended up with multiple parents.
+
 ## [0.6.0] - 2026-06-14
 
 ### Fixed

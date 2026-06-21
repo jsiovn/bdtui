@@ -16,6 +16,18 @@ async function runBd(args, cwd) {
   }
 }
 
+// Run a bd command whose stdout we don't consume (e.g. `dep add`/`dep remove`,
+// which print a human-readable "✓ Added dependency…" line, not JSON). We can't
+// JSON.parse that — doing so was the source of the "Unexpected token '✓'" error.
+// Failures still surface: a non-zero exit rejects execFile and we throw stderr.
+async function runBdVoid(args, cwd) {
+  try {
+    await execFileP('bd', args, { cwd, maxBuffer: MAX_BUFFER });
+  } catch (err) {
+    throw new Error(err.stderr?.trim() || err.message);
+  }
+}
+
 // `bd blocked` only returns *derived*-blocked beads (open beads whose blockers
 // aren't all closed); it omits beads whose status was explicitly set to
 // "blocked". The Blocked tab should show both, so merge the two sources, deduped.
@@ -83,11 +95,11 @@ export const bdReopen = (id, cwd) => runBd(['reopen', id, '--json'], cwd);
 export const bdDepAdd = (child, parent, type, cwd) => {
   const args = ['dep', 'add', child, parent];
   if (type && type !== 'blocks') args.push('--type', type);
-  return runBd(args, cwd);
+  return runBdVoid(args, cwd);
 };
 
 export const bdDepRemove = (child, parent, cwd) =>
-  runBd(['dep', 'remove', child, parent], cwd);
+  runBdVoid(['dep', 'remove', child, parent], cwd);
 
 // Returns all children of an epic (all statuses — bd children includes closed by default)
 export const bdChildren = (id, cwd) => runBd(['children', id, '--json'], cwd);

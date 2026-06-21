@@ -66,18 +66,21 @@ be-12  P2 ready   T  └ Another child
 |-----|--------|
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
-| `g` / `G` | Jump to top / bottom |
+| `g` / `Shift+g` | Jump to top / bottom |
 | `Enter` / `l` | Focus detail pane |
-| `h` / `Esc` | Back to list |
-| `f` | Cycle filter: ready → open → in_progress → all |
-| `r` | Reload current filter |
-| `/` | In-memory title filter |
+| `h` / `Esc` | Back to list (from detail) |
+| `Tab` / `Shift+Tab` | Next / previous status filter (blocked/ready/in_progress/closed/all) |
+| `t` | Cycle type filter (all/epic/task/chore/bug) |
+| `e` | Filter by epic (modal picker; `x` clears) |
+| `/` | In-memory title filter (empty submit clears it) |
+| `r` | Reload (keeps active filters) |
+| `Shift+r` | Reset all filters (title / epic / type) and reload |
 | `s` | Change status |
 | `c` | Close with reason |
-| `C` | Claim (in_progress + assign self) |
+| `Shift+c` | Claim (in_progress + assign self) |
 | `o` | Reopen |
 | `p` | Change priority |
-| `D` | Dependency menu (add / remove) |
+| `h` | Change parent (epic / standalone) |
 | `y` | Yank bead ID to clipboard |
 | `w` | Pick a workflow skill (`/executor-task`, `/executor-task-worktree`, `/executor-epic-task`, `/executor-epic-task-worktree`) and copy it with the selected task's ID. Disabled for epics. See [workflow-template](https://github.com/jsiovn/workflow-template). |
 | `?` | Help overlay |
