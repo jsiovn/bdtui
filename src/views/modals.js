@@ -175,14 +175,21 @@ export function epicPicker(screen, epics, currentEpicId = null) {
   });
 }
 
-export function skillPicker(screen, beadId) {
-  const items = [
-    `/executor-task ${beadId}`,
-    `/executor-task-worktree ${beadId}`,
-    `/executor-epic-task ${beadId}`,
-    `/executor-epic-task-worktree ${beadId}`,
-    `/executor-rework-in-place ${beadId}`,
-  ];
+export function skillPicker(screen, beadId, issueType) {
+  // Epics get the epic-level executor (runs every ready child sequentially on a
+  // single branch); tasks/chores/bugs get the per-bead executors.
+  const items = issueType === 'epic'
+    ? [
+        `/executor-epic-sequential ${beadId}`,
+        `/executor-epic-sequential-worktree ${beadId}`,
+      ]
+    : [
+        `/executor-task ${beadId}`,
+        `/executor-task-worktree ${beadId}`,
+        `/executor-epic-task ${beadId}`,
+        `/executor-epic-task-worktree ${beadId}`,
+        `/executor-rework-in-place ${beadId}`,
+      ];
   return listPicker(screen, 'Copy workflow command', items, 'magenta', 56, 1);
 }
 

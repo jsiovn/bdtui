@@ -13,7 +13,10 @@ const TYPE_FILTERS = ['all', 'epic', 'task', 'chore', 'bug'];
 // Neutralize blessed tag markup in free text before it lands in a tags:true
 // box (mirrors esc() in views/detail.js). The title search is user-typed, so a
 // query like "{bold}" would otherwise corrupt the status line.
-const escTags = (s) => String(s ?? '').replace(/\{/g, '{open}').replace(/\}/g, '{close}');
+// Single pass: a two-step .replace(/\{/).replace(/\}/) would re-process the "}"
+// it just inserted into "{open}", corrupting any text that contains a literal
+// "}" (e.g. a bd JSON error blob) into a stray "{open}" token.
+const escTags = (s) => String(s ?? '').replace(/[{}]/g, (c) => (c === '{' ? '{open}' : '{close}'));
 
 export async function run(cwd) {
   state.cwd = cwd;
@@ -48,7 +51,9 @@ export async function run(cwd) {
   // active so the caller can fall back to a plain "Ready".
   function filterSummary() {
     const parts = [];
-    if (state.textFilter) parts.push(`"${escTags(state.textFilter)}"`);
+    // Plain text only — setStatus() escapes the whole summary, so pre-escaping
+    // textFilter here would double-escape any braces in the search query.
+    if (state.textFilter) parts.push(`"${state.textFilter}"`);
     if (state.epicFilter) parts.push(`epic: ${state.epicFilter}`);
     if (state.typeFilter !== 'all') parts.push(`type: ${state.typeFilter}`);
     if (parts.length === 0) return null;
@@ -59,8 +64,13 @@ export async function run(cwd) {
   }
   function setStatus(msg, isError = false, transient = false) {
     if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
+    // The status bar is a single tags:true row. Neutralize blessed tag markup
+    // and collapse newlines so dynamic text — bd error messages especially,
+    // which can be multi-line and contain "{" — renders as plain text instead
+    // of corrupting the markup or overflowing the one-line height.
+    const safe = escTags(String(msg ?? '').replace(/\s*\n\s*/g, ' ').trim());
     const icon = isError ? '{red-fg}✗{/}' : '{green-fg}●{/}';
-    const text = isError ? `{red-fg}${msg}{/}` : msg;
+    const text = isError ? `{red-fg}${safe}{/}` : safe;
     statusBar.setContent(` ${icon} ${text}  {gray-fg}? help · q quit{/}`);
     screen.render();
     if (transient) {
@@ -544,12 +554,8 @@ export async function run(cwd) {
     if (screen.focused !== list || !state.selectedId) return;
     const id = state.selectedId;
     const bead = state.beadsById.get(id);
-    if (bead?.issue_type === 'epic') {
-      setStatus(`${id} is an epic — workflow skills apply to tasks only`, true, true);
-      return;
-    }
     try {
-      const line = await skillPicker(screen, id);
+      const line = await skillPicker(screen, id, bead?.issue_type);
       list.focus();
       await copyToClipboard(line, {
         busyMsg: `Copying ${line}…`,

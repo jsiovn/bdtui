@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-06-29
+
+### Added
+
+- `w` now works on epics. Previously the workflow-command picker was disabled for epics ("workflow skills apply to tasks only"); pressing `w` on an epic now opens a picker offering `/executor-epic-sequential` and `/executor-epic-sequential-worktree` (which run every ready child of the epic on a single branch / isolated worktree). Tasks, chores, and bugs keep their existing per-bead executors.
+
+### Fixed
+
+- `bd` errors now render as readable text in the status bar. When a `bd` command failed, bdtui threw the entire structured JSON error body (`{"error": "…", "schema_version": 1}`) verbatim — a multi-line blob whose leading `{` corrupted the one-line status bar markup (the "error with `{`" seen when a tab failed to load). bdtui now parses that body and surfaces just the human-readable `error` field, collapsing newlines and escaping tag markup so the status bar stays a clean single line.
+- Tag-escaping no longer mangles text containing a literal `}`. The two-step escape (`replace('{')` then `replace('}')`) re-processed the `}` it had just inserted into `{open}`, turning any `}` in a bead description (e.g. JSON/code snippets) or in a `/` search query into a stray `{open}` token. Escaping is now a single pass in both the detail pane and the status bar.
+
+### Changed
+
+- npm package metadata: expanded `description` and added `keywords` for discoverability; normalized the repository URL to the `git+https://` form.
+- Removed internal agent-workflow tooling (`.beads/`, `.claude/` agents and skills, `CLAUDE.md`, `BEADS_WORKFLOW.md`, `docs/TROUBLESHOOTING.md`) from the repository.
+
 ## [0.7.1] - 2026-06-21
 
 ### Fixed

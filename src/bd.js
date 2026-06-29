@@ -7,12 +7,32 @@ const execFileP = promisify(execFile);
 // closed beads) can exceed that and throw "stdout maxBuffer length exceeded".
 const MAX_BUFFER = 64 * 1024 * 1024; // 64MB
 
+// bd reports failures with a non-zero exit and a structured JSON body
+// ({"error": "…", "schema_version": 1}) — usually on stderr, occasionally on
+// stdout. Surface the human-readable `error` field; fall back to the raw text,
+// then execFile's own message. Without this the whole multi-line JSON blob —
+// leading "{" and all — gets thrown verbatim and dumped into the one-line
+// status bar, which is the "error with {" users see when a tab fails to load.
+function bdErrorMessage(err) {
+  const raw = (err.stderr?.trim() || err.stdout?.trim() || '');
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.error === 'string' && parsed.error.trim()) {
+        return parsed.error.trim();
+      }
+    } catch {}
+    return raw;
+  }
+  return err.message;
+}
+
 async function runBd(args, cwd) {
   try {
     const { stdout } = await execFileP('bd', args, { cwd, maxBuffer: MAX_BUFFER });
     return JSON.parse(stdout);
   } catch (err) {
-    throw new Error(err.stderr?.trim() || err.message);
+    throw new Error(bdErrorMessage(err));
   }
 }
 
@@ -24,7 +44,7 @@ async function runBdVoid(args, cwd) {
   try {
     await execFileP('bd', args, { cwd, maxBuffer: MAX_BUFFER });
   } catch (err) {
-    throw new Error(err.stderr?.trim() || err.message);
+    throw new Error(bdErrorMessage(err));
   }
 }
 
