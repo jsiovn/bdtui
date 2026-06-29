@@ -1,33 +1,82 @@
-<!-- BEGIN TEMPLATE BD WORKFLOW -->
+# CLAUDE.md
 
-### PR review replies
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Only append `@claude review` when posting a reply to a **conversation comment authored by `claude[bot]`**. This triggers the bot to re-run its review.
+## Working principles
 
-Do **not** include `@claude review` in replies to human reviewer inline thread comments or in any other conversation comments.
+How to approach any change in this repo: think before coding, keep it simple, make surgical edits, drive every task to a verified outcome.
 
-## Issue tracking
+@docs/context/PRINCIPLES.md
 
-This repo uses `bd` for issue tracking. Use `bd`, not markdown TODO files or alternate trackers.
+## What this is
 
-Live `.beads` state is local-only and should not be committed. Use one top-level executor session at a time per branch.
+`bdtui` is a [blessed](https://github.com/chjj/blessed)-based terminal UI for the [`bd`](https://github.com/gastownhall/beads) "beads" issue tracker. It shells out to the `bd` CLI for every read and write — it has no database of its own. Pure ESM, Node ≥ 20, single runtime dependency (`blessed`).
 
-Preferred workflow entry points are `plan-beads`, `executor-task`, and `executor-task-worktree`. When the bead is part of an epic that should land in main as a single merge, use `executor-epic-task` (or `executor-epic-task-worktree` for parallel work) — these branch off and PR into `epic/<epic-bead-id>-<slug>` instead of main. When a bead was already executed and a PR is open but the task turned out to be wrong, reopen the bead, edit its requirements, then run `executor-rework-in-place <bead-id>` to amend the existing PR in the current working tree (no new branch, no new PR). Use `planner-research` only inside planner sessions and keep `writing-plans` executor-only.
+## Commands
 
-Each bead must be fresh-session-safe: a new executor session should be able to execute from the bead contract, persisted inputs, and local code inspection without replaying prior chat.
-
-Workflow scaffold files such as `CLAUDE.md`, `BEADS_WORKFLOW.md`, repo-local skills under `.claude/skills/`, and repo-local subagents under `.claude/agents/` are committed to this repo's git — and `AGENTS.md` plus the `.codex/skills/` and `.codex/agents/` surfaces are committed too when Codex is set up — so they travel with feature branches and `git worktree` checkouts. Refresh them from the template with `update-skills`. Plan files under `docs/plans/` are the exception: they are git-ignored local scratch, written fresh per bead — not committed and not pushed. When a bead needs to reference its plan across machines, inline the plan into the bead's `notes` (Dolt-synced), not the `docs/plans/` path.
-
-Keep repo exploration local. Verify the actual environment before running build, test, run, deploy, or migration commands; do not assume local execution.
-
-Useful commands:
+There is no build, lint, or test setup — the source runs directly under Node.
 
 ```bash
-bd ready --json
-bd show <id> --json
-bd update <id> --status=in_progress
-bd close <id> --reason="Completed"
-bd dep add <child-id> <parent-id>
+node bin/bdtui.js               # run against the current directory
+node bin/bdtui.js ~/some/proj   # run against another project's .beads/ db
+node bin/bdtui.js -v            # print version
 ```
 
-<!-- END TEMPLATE BD WORKFLOW -->
+Requires `bd` on `$PATH` and a project containing a `.beads/` database (`bd init`). `bin/bdtui.js` auto-starts the Dolt server (`bd dolt start`) if `bd dolt test` fails, then `chdir`s into the target and hands off to `src/app.js`.
+
+## Architecture
+
+Strict one-way layering — data → state → views, wired together by `app.js`:
+
+- **`src/bd.js`** — the _only_ module that spawns `bd`. `runBd` parses JSON stdout; `runBdVoid` runs commands whose output is human-readable text (`dep add/remove`) and must NOT be JSON-parsed. `bdErrorMessage` unwraps `bd`'s structured `{"error": …}` failure body into a readable string. Note `MAX_BUFFER` is raised to 64MB because `list --all` can exceed Node's 1MB default.
+
+- **`src/state.js`** — a single mutable `state` object plus all data-loading/filtering logic. Key invariants:
+  - The epic→child **tree is built from the `parent` field embedded in each `bd list` row** (`buildTreeOrder`), so there is no per-bead subprocess fan-out even on large repos. The tree is intentionally only two levels deep.
+  - `applyFilters()` is the single place filters are applied, and they **compose** in order: epic scope → type → text. A reload (`r`) replays them; the status bar describes them. Type/text filters flatten the tree to a flat list.
+  - The **`all` and `closed` tabs page lazily** (`isPaged()`, `visibleCount`, `pageSize`): every bead is fetched (cap lifted via `--limit 0`) but rows render in batches as you scroll. `ensureSelectedVisible()` must be called after `selectedId` is finalized so a kept selection stays rendered.
+
+- **`src/views/list.js`, `detail.js`, `modals.js`** — `create*` build a blessed widget once; `render*` are pure functions that read `state` and repaint. Pickers in `modals.js` return promises that resolve on select and reject with `Error('cancelled')` on Esc/q.
+
+- **`src/keys.js`** — the help overlay (`showHelp`) and the canonical `HELP_TEXT`.
+
+- **`src/app.js`** — `run(cwd)` owns the screen, status/tab bars, all global keybindings, and the modal lifecycle.
+
+### Cross-cutting gotchas
+
+- **Blessed tag escaping.** Any user/`bd`-supplied text rendered into a `tags:true` box must be escaped with the single-pass `escTags`/`esc` helper (`replace(/[{}]/g, …)`). A naive two-step `.replace('{').replace('}')` re-processes the `}` it just inserted and corrupts text containing a literal `}` (e.g. a JSON error blob). This is duplicated deliberately in `app.js` and `views/detail.js`.
+
+- **Shift keybindings.** blessed reports a shifted letter as `S-<lower>`, never bare uppercase — bind `'S-r'`, `'S-c'`, `'S-g'`, NOT `'R'`/`'C'`/`'G'` (those are dead).
+
+- **Modal handling.** `app.js`'s `key()` wrapper swallows every global key while `modalOpen` is true, so each modal owns its own close keys. `?` is the exception: it is registered directly on `screen` as an open/close toggle (binding it as a close key would slam the help shut on the same keypress that opened it). Help close keys are bound at _screen_ level, not box level, because a mouse click can steal focus from the box.
+
+- **Effective "blocked" status.** The Blocked tab and the status glyphs are _derived_: an `open` bead whose id is in `state.blockedIds` (from `bd blocked`) renders as `blocked`. `bdBlocked` merges derived-blocked beads with explicitly `status=blocked` beads, deduped, because `bd blocked` omits the latter.
+
+## Conventions
+
+- ESM only (`"type": "module"`), top-level `await` in `app.js`/`bin`.
+- Keep `README.md` (keybindings table), `src/keys.js` (`HELP_TEXT`), and the actual `app.js` bindings in sync when changing keys.
+- Version is bumped in the feature commit; `npm publish` is a separate later step. Land changes via a feature branch + PR into `master`, not direct pushes. `CHANGELOG.md` tracks releases.
+
+## Project conventions
+
+### Commits
+
+Conventional Commits by convention — there is **no** commitlint/husky tooling in this repo, so the format is not machine-enforced; follow it anyway. Format: `type: subject`. Commits are **scopeless** (no `(scope)` — every commit in history omits it). Types in use: `feat`, `fix`, `chore`, `docs`.
+
+A release commit bumps the `version` in `package.json` and updates `CHANGELOG.md` in the same commit, and states it in the subject — e.g. `feat: epic 'w' workflow dialog; …; bump to 0.7.2`.
+
+### Pull request conventions
+
+When creating a PR, always set:
+
+- **Assignee:** `jsiovn` (repo owner)
+- **Reviewer:** `phudev95` (the repo's other collaborator)
+- **Labels:** one type label from the repo's label set — `enhancement`, `bug`, or `documentation` (these are the GitHub defaults; there is no `refactor` or epic-name label, so don't invent one — create the label first if you need it)
+
+```bash
+gh pr create \
+  --assignee jsiovn \
+  --reviewer phudev95 \
+  --label "enhancement" \
+  ...
+```

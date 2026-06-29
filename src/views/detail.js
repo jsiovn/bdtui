@@ -24,7 +24,10 @@ const STATUS_ICON = {
 const PRIORITY_COLOR  = ['red', 'yellow', 'green', 'cyan', 'gray'];
 const PRIORITY_LABEL  = ['Critical', 'High', 'Normal', 'Low', 'Trivial'];
 
-function esc(s)          { return String(s ?? '').replace(/\{/g, '{open}').replace(/\}/g, '{close}'); }
+// Single pass: a two-step .replace(/\{/).replace(/\}/) would re-process the "}"
+// it just inserted into "{open}", corrupting any text containing a literal "}"
+// (e.g. a JSON/code snippet in a description) into a stray "{open}" token.
+function esc(s)          { return String(s ?? '').replace(/[{}]/g, (c) => (c === '{' ? '{open}' : '{close}')); }
 function t(color, text)  { return `{${color}-fg}${text}{/}`; }
 function bold(text)      { return `{bold}${text}{/bold}`; }
 function fmtDate(iso)    { return iso ? iso.slice(0, 10) : '—'; }

@@ -1,15 +1,1 @@
 node_modules/
-
-# Dolt database files (added by bd init)
-
-.beads/export-state.json
-
-# BEGIN TEMPLATE AGENT WORKFLOW LOCAL-ONLY
-.beads-credential-key
-.beads/interactions.jsonl
-.bv/
-.dolt/
-*.db
-docs/plans/
-.beads/epic-runs
-# END TEMPLATE AGENT WORKFLOW LOCAL-ONLY

@@ -34,7 +34,7 @@ export const HELP_TEXT = [
   '  Other',
   '  ──────────────────────────────────────',
   '  y           Yank bead ID to clipboard',
-  '  w           Copy workflow skill command for selected task',
+  '  w           Copy workflow command (tasks: executors; epics: epic-sequential)',
   '  ?           Toggle this help',
   '  q / Ctrl-C  Quit',
   '',
