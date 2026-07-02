@@ -83,6 +83,7 @@ be-12  P2 ready   T  └ Another child
 | `h` | Change parent (epic / standalone) |
 | `y` | Yank bead ID to clipboard |
 | `w` | Pick a workflow command and copy it with the selected bead's ID. Tasks list the per-bead executors (`/executor-task`, `/executor-task-worktree`, `/executor-epic-task`, `/executor-epic-task-worktree`, `/executor-rework-in-place`); epics list `/executor-epic-sequential` and `/executor-epic-sequential-worktree`. See [workflow-template](https://github.com/jsiovn/workflow-template). |
+| `m` | Release mouse capture so you can drag-select & copy detail text with your terminal (toggle) |
 | `?` | Help overlay |
 | `q` / `Ctrl-C` | Quit |
 

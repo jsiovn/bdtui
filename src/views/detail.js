@@ -184,6 +184,18 @@ export function renderDetail(box) {
     lines.push(field('Labels', b.labels.map((l) => t('blue', esc(l))).join('  ')));
   }
 
+  // ── Close reason (closed beads) ─────────────────────────────────────────────
+  // bd stores the text from `bd close --reason` in `close_reason`; loadDetail
+  // already spreads the full `bd show` object onto the bead, so it's available
+  // here. Rendered high in the pane (before deps) so a closed bead's resolution
+  // is visible without scrolling. Truthy guard → open beads show nothing.
+  if (b.close_reason) {
+    const when = b.closed_at ? ` · ${fmtDate(b.closed_at)}` : '';
+    lines.push(sectionHeader(`Close Reason${when}`));
+    lines.push('');
+    renderDescription(lines, b.close_reason);
+  }
+
   // ── Dependencies ───────────────────────────────────────────────────────────
   if (b.depsDown?.length > 0) {
     lines.push(sectionHeader(`Depends on (${b.depsDown.length})`));

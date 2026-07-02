@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-02
+
+### Added
+
+- The detail pane now shows a **Close Reason** section for closed beads. When a bead is closed with `c`, `bd` stores the text in its `close_reason` field; that resolution (with the close date) was already fetched but never displayed. It now renders above the dependencies, so you can see why/how a bead was closed without leaving the TUI.
+- `m` toggles mouse capture so you can **select and copy detail-pane text**. blessed grabs the terminal mouse process-wide the moment any pane enables it, which blocks the terminal's own click-drag selection. Pressing `m` releases the mouse (drag to select, then copy with your terminal's copy); pressing it again restores wheel scrolling and click-to-select. The status bar shows the current mode.
+
 ## [0.7.2] - 2026-06-29
 
 ### Added

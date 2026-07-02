@@ -35,6 +35,7 @@ export const HELP_TEXT = [
   '  ──────────────────────────────────────',
   '  y           Yank bead ID to clipboard',
   '  w           Copy workflow command (tasks: executors; epics: epic-sequential)',
+  '  m           Release mouse to select/copy detail text (toggle)',
   '  ?           Toggle this help',
   '  q / Ctrl-C  Quit',
   '',
