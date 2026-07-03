@@ -7,7 +7,7 @@ import { statusPicker, priorityPicker, textPrompt, parentPicker, skillPicker, ep
 import { showHelp } from './keys.js';
 import { bdUpdate, bdClose, bdClaim, bdReopen, bdDepAdd, bdDepRemove, bdDepListDown, bdEpics } from './bd.js';
 
-const FILTERS = ['blocked', 'ready', 'in_progress', 'closed', 'all'];
+const FILTERS = ['deferred', 'blocked', 'ready', 'in_progress', 'closed', 'all'];
 const TYPE_FILTERS = ['all', 'epic', 'task', 'chore', 'bug'];
 
 // Neutralize blessed tag markup in free text before it lands in a tags:true

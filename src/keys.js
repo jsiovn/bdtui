@@ -13,7 +13,7 @@ export const HELP_TEXT = [
   '',
   '  Filters & refresh',
   '  ──────────────────────────────────────',
-  '  Tab         Next status filter (blocked/ready/in_progress/closed/all)',
+  '  Tab         Next status filter (deferred/blocked/ready/in_progress/closed/all)',
   '  Shift+Tab   Previous status filter',
   '  t           Cycle type filter (all/epic/task/chore/bug)',
   '  e           Filter by epic (modal picker; x clears; switches status to all)',
