@@ -7,7 +7,7 @@ import { statusPicker, priorityPicker, textPrompt, parentPicker, skillPicker, ep
 import { showHelp } from './keys.js';
 import { bdUpdate, bdClose, bdClaim, bdReopen, bdDepAdd, bdDepRemove, bdDepListDown, bdEpics } from './bd.js';
 
-const FILTERS = ['blocked', 'ready', 'in_progress', 'closed', 'all'];
+const FILTERS = ['deferred', 'blocked', 'ready', 'in_progress', 'closed', 'all'];
 const TYPE_FILTERS = ['all', 'epic', 'task', 'chore', 'bug'];
 
 // Neutralize blessed tag markup in free text before it lands in a tags:true
@@ -564,6 +564,24 @@ export async function run(cwd) {
     } catch (err) {
       list.focus();
       if (err.message !== 'cancelled') setStatus(err.message, true, true);
+    }
+  });
+
+  // Release blessed's mouse capture so the terminal can do native click-drag
+  // text selection (then copy with the terminal's own copy). blessed grabs the
+  // mouse process-wide the moment any element sets mouse:true, which blocks
+  // native selection; toggling it off hands the mouse back to the terminal.
+  // Re-enable via program.enableMouse() directly — screen.enableMouse() is a
+  // no-op here because blessed's _listenedMouse latch is already set.
+  let mouseCaptured = true;
+  key(['m'], () => {
+    mouseCaptured = !mouseCaptured;
+    if (mouseCaptured) {
+      screen.program.enableMouse();
+      setStatus('Mouse restored — wheel scroll & click active', false, true);
+    } else {
+      screen.program.disableMouse();
+      setStatus('Mouse released — drag to select text, copy with your terminal · press m to restore');
     }
   });
 

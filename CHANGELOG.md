@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-02
+
+### Added
+
+- The detail pane now shows a **Close Reason** section for closed beads. When a bead is closed with `c`, `bd` stores the text in its `close_reason` field; that resolution (with the close date) was already fetched but never displayed. It now renders above the dependencies, so you can see why/how a bead was closed without leaving the TUI.
+- `m` toggles mouse capture so you can **select and copy detail-pane text**. blessed grabs the terminal mouse process-wide the moment any pane enables it, which blocks the terminal's own click-drag selection. Pressing `m` releases the mouse (drag to select, then copy with your terminal's copy); pressing it again restores wheel scrolling and click-to-select. The status bar shows the current mode.
+- A **Deferred** status tab, added to the left of **Blocked** in the tab bar. It lists every bead whose stored status is `deferred` (`bd list --status deferred`) — beads you've explicitly parked — so they're reachable without scrolling the **All** tab. Like the other status tabs it builds the epic→child tree (a deferred bead nests under its parent epic) and cycles with `Tab` / `Shift+Tab`. The deferred status glyph/color and the `s` status picker already supported `deferred`; this surfaces it as a first-class view.
+
 ## [0.7.2] - 2026-06-29
 
 ### Added
