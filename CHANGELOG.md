@@ -4,8 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-29
+
 ### Added
 
+- The `w` workflow-command picker is split into two sections: **Claude skills** (the existing executor commands) and **OpenCode skills** (the same commands with an `opencode` argument, e.g. `/executor-task be-12 opencode`), for agent-workflow-beads ≥ 1.2.0's OpenCode implementor: Claude delegates only the implementation step to a headless OpenCode session. Section titles cannot be selected, and the cursor starts on the first command. The picker is widened from 56 to 66 columns so the longer lines are not truncated.
 - Clicking a bead in the list (or scrolling the list with the mouse wheel) now shows its details in the Detail pane. Before, only keyboard navigation updated it.
 - vi-style scrolling in the focused Detail pane: `j` / `k` scroll one line, `g` / `Shift+g` jump to the top / bottom, and `Ctrl-d` / `Ctrl-u` scroll half a page. Before, only `↑` / `↓` worked.
 
@@ -16,12 +19,6 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - The mouse wheel no longer stops working on the right side of the Detail pane in wide terminals. blessed only asked for X10/UTF-8 (`?1005`) mouse reports. X10 can't encode columns past 223, and xterm.js (the VS Code terminal) ignores `?1005`, so the terminal dropped those events. bdtui now also asks for SGR (`?1006`) reports, which have no column limit.
-
-## [0.8.1] - 2026-10-29
-
-### Added
-
-- The `w` workflow-command picker is split into two sections: **Claude skills** (the existing executor commands) and **OpenCode skills** (the same commands with an `opencode` argument, e.g. `/executor-task be-12 opencode`), for agent-workflow-beads ≥ 1.2.0's OpenCode implementor: Claude delegates only the implementation step to a headless OpenCode session. Section titles cannot be selected, and the cursor starts on the first command. The picker is widened from 56 to 66 columns so the longer lines are not truncated.
 
 ## [0.8.0] - 2026-07-02
 
