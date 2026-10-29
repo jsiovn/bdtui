@@ -33,7 +33,8 @@ function listPicker(screen, label, items, borderColor = 'cyan', width = 36, left
       if (headers.has(index)) return;
       picker.destroy();
       screen.render();
-      resolve(item.content.trim());
+      // Strip color tags so callers get the plain text (e.g. the command to copy).
+      resolve(blessed.helpers.cleanTags(item.content));
     });
 
     picker.key(['escape', 'q', 'h'], () => {
@@ -195,11 +196,12 @@ export function skillPicker(screen, beadId, issueType) {
         'executor-epic-task-worktree',
         'executor-rework-in-place',
       ];
+  const cmd = (skill) => `{green-fg}/${skill}{/green-fg} {gray-fg}${beadId}{/gray-fg}`;
   const items = [
     '{bold}── Claude skills ──{/bold}',
-    ...skills.map((skill) => `/${skill} ${beadId}`),
+    ...skills.map(cmd),
     '{bold}── OpenCode skills ──{/bold}',
-    ...skills.map((skill) => `/${skill} ${beadId} opencode`),
+    ...skills.map((skill) => `${cmd(skill)} {red-fg}opencode{/red-fg}`),
   ];
   const headers = new Set([0, skills.length + 1]);
   return listPicker(screen, 'Copy workflow command', items, 'magenta', 66, 1, headers);

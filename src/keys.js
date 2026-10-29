@@ -10,6 +10,7 @@ export const HELP_TEXT = [
   '  Shift+g     Jump to bottom',
   '  Enter / l   Focus detail pane',
   '  h / Esc     Back to list (from detail)',
+  '  j / k       Scroll detail (when focused; g / Shift+g top/bottom, Ctrl-d/u half page)',
   '',
   '  Filters & refresh',
   '  ──────────────────────────────────────',
