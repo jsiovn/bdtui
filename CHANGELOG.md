@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-29
+
+### Added
+
+- The `w` workflow-command picker now lists an `opencode` variant under every executor command (e.g. `/executor-task be-12 opencode`), for agent-workflow-beads ≥ 1.2.0's OpenCode implementor: Claude delegates only the implementation step to a headless OpenCode session. The picker is widened from 56 to 66 columns so the longer lines are not truncated.
+
 ## [0.8.0] - 2026-07-02
 
 ### Added

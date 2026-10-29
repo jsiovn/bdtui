@@ -177,20 +177,23 @@ export function epicPicker(screen, epics, currentEpicId = null) {
 
 export function skillPicker(screen, beadId, issueType) {
   // Epics get the epic-level executor (runs every ready child sequentially on a
-  // single branch); tasks/chores/bugs get the per-bead executors.
-  const items = issueType === 'epic'
-    ? [
-        `/executor-epic-sequential ${beadId}`,
-        `/executor-epic-sequential-worktree ${beadId}`,
-      ]
+  // single branch); tasks/chores/bugs get the per-bead executors. Each command
+  // also has an `opencode` variant that delegates only the implementation step
+  // to a headless OpenCode implementor (agent-workflow-beads --with-opencode).
+  const skills = issueType === 'epic'
+    ? ['executor-epic-sequential', 'executor-epic-sequential-worktree']
     : [
-        `/executor-task ${beadId}`,
-        `/executor-task-worktree ${beadId}`,
-        `/executor-epic-task ${beadId}`,
-        `/executor-epic-task-worktree ${beadId}`,
-        `/executor-rework-in-place ${beadId}`,
+        'executor-task',
+        'executor-task-worktree',
+        'executor-epic-task',
+        'executor-epic-task-worktree',
+        'executor-rework-in-place',
       ];
-  return listPicker(screen, 'Copy workflow command', items, 'magenta', 56, 1);
+  const items = skills.flatMap((skill) => [
+    `/${skill} ${beadId}`,
+    `/${skill} ${beadId} opencode`,
+  ]);
+  return listPicker(screen, 'Copy workflow command', items, 'magenta', 66, 1);
 }
 
 export function parentPicker(screen, epics, { selfId, currentParentIds = [] } = {}) {

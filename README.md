@@ -91,19 +91,21 @@ be-12 P2 open    T └ Refresh tokens
 | `p`                 | Change priority                                                                                                                                                                                                                                                                                                                                               |
 | `h`                 | Change parent (epic / standalone)                                                                                                                                                                                                                                                                                                                             |
 | `y`                 | Yank bead ID to clipboard                                                                                                                                                                                                                                                                                                                                     |
-| `w`                 | Pick a workflow command and copy it with the selected bead's ID. Tasks list the per-bead executors (`/executor-task`, `/executor-task-worktree`, `/executor-epic-task`, `/executor-epic-task-worktree`, `/executor-rework-in-place`); epics list `/executor-epic-sequential` and `/executor-epic-sequential-worktree`. See [Agent workflow](#agent-workflow). |
+| `w`                 | Pick a workflow command and copy it with the selected bead's ID. Tasks list the per-bead executors (`/executor-task`, `/executor-task-worktree`, `/executor-epic-task`, `/executor-epic-task-worktree`, `/executor-rework-in-place`); epics list `/executor-epic-sequential` and `/executor-epic-sequential-worktree`. Each command also has an `opencode` variant. See [Agent workflow](#agent-workflow). |
 | `m`                 | Release mouse capture so you can drag-select & copy detail text with your terminal (toggle)                                                                                                                                                                                                                                                                   |
 | `?`                 | Help overlay                                                                                                                                                                                                                                                                                                                                                  |
 | `q` / `Ctrl-C`      | Quit                                                                                                                                                                                                                                                                                                                                                          |
 
 ## Agent workflow
 
-Pressing `w` copies a slash-command for the selected bead, e.g. `/executor-task be-12`. Those `/executor-*` commands are [Claude Code](https://claude.com/claude-code) / Codex skills scaffolded by [`agent-workflow-beads`](https://www.npmjs.com/package/agent-workflow-beads) — a planner → executor workflow backed by the same beads database. Install it globally, then bootstrap your repo so the copied commands resolve:
+Pressing `w` copies a slash-command for the selected bead, e.g. `/executor-task be-12`. Those `/executor-*` commands are [Claude Code](https://claude.com/claude-code) skills scaffolded by [`agent-workflow-beads`](https://www.npmjs.com/package/agent-workflow-beads) — a planner → executor workflow backed by the same beads database. Install it globally, then bootstrap your repo so the copied commands resolve:
 
 ```bash
 npm install -g agent-workflow-beads
 agent-workflow-beads bootstrap /path/to/your-repo myprefix
 ```
+
+Each command is also listed with a trailing `opencode` (e.g. `/executor-task be-12 opencode`). That variant has Claude delegate the implementation step to a headless [OpenCode](https://opencode.ai) implementor while Claude still plans, tests, reviews, and closes the bead. It needs `opencode` on `PATH` and a repo scaffolded with `agent-workflow-beads bootstrap|update --with-opencode` (agent-workflow-beads ≥ 1.2.0). Append `model=<provider/model>` after pasting to pick the OpenCode model; otherwise OpenCode's default is used.
 
 ## Author
 
