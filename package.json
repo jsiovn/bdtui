@@ -1,6 +1,6 @@
 {
   "name": "bdtui",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Terminal UI (TUI) for the bd beads issue tracker - browse, filter, and update beads from the CLI with vim keybindings",
   "keywords": [
     "bd",

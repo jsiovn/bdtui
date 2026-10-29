@@ -135,6 +135,7 @@ export function createDetail(screen) {
     scrollable: true,
     alwaysScroll: true,
     keys: true,
+    vi: true,
     mouse: true,
     scrollbar: { ch: ' ', track: { bg: 'black' }, style: { bg: 'cyan' } },
     style: {

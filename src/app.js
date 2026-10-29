@@ -43,6 +43,17 @@ export async function run(cwd) {
   const list = createList(screen);
   const detail = createDetail(screen);
 
+  // blessed's enableMouse() only asks xterm-like terminals for X10 + UTF-8
+  // (?1005) mouse reports. X10 can't encode columns past 223 and xterm.js (the
+  // VS Code terminal) ignores ?1005, so on a wide terminal every wheel/click on
+  // the right part of the Detail pane is silently dropped. Also request SGR
+  // (?1006): blessed parses it, and it has no coordinate limit.
+  function enableMouse() {
+    screen.program.enableMouse();
+    screen.program.setMouse({ sgrMouse: true }, true);
+  }
+  enableMouse();
+
   let debounceTimer = null;
 
   let statusTimer = null;
@@ -154,8 +165,9 @@ export async function run(cwd) {
     });
   }
 
-  // Capture all keypresses on the list to detect navigation
-  list.on('keypress', onNav);
+  // Follow every selection change on the list — keyboard nav, a mouse click on
+  // a row, or a wheel scroll — not just keypresses, so clicks update Detail too.
+  list.on('select item', onNav);
 
   // Focus border highlighting
   list.on('focus',   () => { setFocusBorder('list');   screen.render(); });
@@ -571,13 +583,14 @@ export async function run(cwd) {
   // text selection (then copy with the terminal's own copy). blessed grabs the
   // mouse process-wide the moment any element sets mouse:true, which blocks
   // native selection; toggling it off hands the mouse back to the terminal.
-  // Re-enable via program.enableMouse() directly — screen.enableMouse() is a
-  // no-op here because blessed's _listenedMouse latch is already set.
+  // Re-enable via program.enableMouse() directly (inside enableMouse()) —
+  // screen.enableMouse() is a no-op here because blessed's _listenedMouse latch
+  // is already set.
   let mouseCaptured = true;
   key(['m'], () => {
     mouseCaptured = !mouseCaptured;
     if (mouseCaptured) {
-      screen.program.enableMouse();
+      enableMouse();
       setStatus('Mouse restored — wheel scroll & click active', false, true);
     } else {
       screen.program.disableMouse();

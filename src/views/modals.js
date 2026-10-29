@@ -1,6 +1,8 @@
 import blessed from 'blessed';
 
-function listPicker(screen, label, items, borderColor = 'cyan', width = 36, left = 'center') {
+// `headers` holds indexes of non-selectable section-title rows: Enter on one is
+// ignored, and the cursor starts on the first real item.
+function listPicker(screen, label, items, borderColor = 'cyan', width = 36, left = 'center', headers = new Set()) {
   return new Promise((resolve, reject) => {
     const height = Math.min(items.length + 4, 20);
     const picker = blessed.list({
@@ -22,13 +24,17 @@ function listPicker(screen, label, items, borderColor = 'cyan', width = 36, left
       },
     });
 
+    const first = items.findIndex((_, i) => !headers.has(i));
+    if (first > 0) picker.select(first);
     picker.focus();
     screen.render();
 
-    picker.once('select', (item) => {
+    picker.on('select', (item, index) => {
+      if (headers.has(index)) return;
       picker.destroy();
       screen.render();
-      resolve(item.content.trim());
+      // Strip color tags so callers get the plain text (e.g. the command to copy).
+      resolve(blessed.helpers.cleanTags(item.content));
     });
 
     picker.key(['escape', 'q', 'h'], () => {
@@ -177,20 +183,28 @@ export function epicPicker(screen, epics, currentEpicId = null) {
 
 export function skillPicker(screen, beadId, issueType) {
   // Epics get the epic-level executor (runs every ready child sequentially on a
-  // single branch); tasks/chores/bugs get the per-bead executors.
-  const items = issueType === 'epic'
-    ? [
-        `/executor-epic-sequential ${beadId}`,
-        `/executor-epic-sequential-worktree ${beadId}`,
-      ]
+  // single branch); tasks/chores/bugs get the per-bead executors. The OpenCode
+  // section repeats them with the `opencode` argument, which delegates only the
+  // implementation step to a headless OpenCode implementor
+  // (agent-workflow-beads --with-opencode).
+  const skills = issueType === 'epic'
+    ? ['executor-epic-sequential', 'executor-epic-sequential-worktree']
     : [
-        `/executor-task ${beadId}`,
-        `/executor-task-worktree ${beadId}`,
-        `/executor-epic-task ${beadId}`,
-        `/executor-epic-task-worktree ${beadId}`,
-        `/executor-rework-in-place ${beadId}`,
+        'executor-task',
+        'executor-task-worktree',
+        'executor-epic-task',
+        'executor-epic-task-worktree',
+        'executor-rework-in-place',
       ];
-  return listPicker(screen, 'Copy workflow command', items, 'magenta', 56, 1);
+  const cmd = (skill) => `{green-fg}/${skill}{/green-fg} {gray-fg}${beadId}{/gray-fg}`;
+  const items = [
+    '{bold}── Claude skills ──{/bold}',
+    ...skills.map(cmd),
+    '{bold}── OpenCode skills ──{/bold}',
+    ...skills.map((skill) => `${cmd(skill)} {red-fg}opencode{/red-fg}`),
+  ];
+  const headers = new Set([0, skills.length + 1]);
+  return listPicker(screen, 'Copy workflow command', items, 'magenta', 66, 1, headers);
 }
 
 export function parentPicker(screen, epics, { selfId, currentParentIds = [] } = {}) {
