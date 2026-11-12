@@ -186,8 +186,12 @@ export function skillPicker(screen, beadId, issueType) {
   // single branch); tasks/chores/bugs get the per-bead executors. The OpenCode
   // section repeats them with the `opencode` argument, which delegates only the
   // implementation step to a headless OpenCode implementor
-  // (agent-workflow-beads --with-opencode).
-  const skills = issueType === 'epic'
+  // (agent-workflow-beads --with-opencode). Epics also get a Herdr section: the
+  // `herdr` argument runs each bead in a named Herdr Claude agent instead of
+  // `claude -p` (agent-workflow-beads >= 1.3.0). Tasks get none, since a
+  // per-bead executor already runs inside the agent it is pasted into.
+  const isEpic = issueType === 'epic';
+  const skills = isEpic
     ? ['executor-epic-sequential', 'executor-epic-sequential-worktree']
     : [
         'executor-task',
@@ -204,6 +208,14 @@ export function skillPicker(screen, beadId, issueType) {
     ...skills.map((skill) => `${cmd(skill)} {red-fg}opencode{/red-fg}`),
   ];
   const headers = new Set([0, skills.length + 1]);
+  if (isEpic) {
+    headers.add(items.length);
+    items.push(
+      '{bold}── Herdr skills ──{/bold}',
+      ...skills.map((skill) => `${cmd(skill)} {cyan-fg}herdr{/cyan-fg}`),
+      ...skills.map((skill) => `${cmd(skill)} {cyan-fg}herdr{/cyan-fg} {red-fg}opencode{/red-fg}`),
+    );
+  }
   return listPicker(screen, 'Copy workflow command', items, 'magenta', 66, 1, headers);
 }
 

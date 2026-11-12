@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-13
+
+### Added
+
+- On an epic, the `w` workflow-command picker has a third section, **Herdr skills**: `/executor-epic-sequential <id> herdr`, `/executor-epic-sequential-worktree <id> herdr`, and the same two with `herdr opencode`. The `herdr` argument (agent-workflow-beads ≥ 1.3.0) runs each bead in a named interactive Claude agent in Herdr, cleared with `/clear` between beads, instead of a headless `claude -p` worker. The argument is cyan; the copied command is still plain text. Task beads get no Herdr section.
+
 ## [0.8.1] - 2026-10-29
 
 ### Added
