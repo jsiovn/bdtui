@@ -5,7 +5,7 @@ import { createList, renderList } from './views/list.js';
 import { createDetail, renderDetail } from './views/detail.js';
 import { statusPicker, priorityPicker, textPrompt, parentPicker, skillPicker, epicPicker } from './views/modals.js';
 import { showHelp } from './keys.js';
-import { bdUpdate, bdClose, bdClaim, bdReopen, bdDepAdd, bdDepRemove, bdDepListDown, bdEpics } from './bd.js';
+import { bdUpdate, bdClose, bdClaim, bdReopen, bdDepAdd, bdDepRemove, bdDepListDown, bdEpics, bdEventsFollow } from './bd.js';
 
 const FILTERS = ['deferred', 'blocked', 'ready', 'in_progress', 'closed', 'all'];
 const TYPE_FILTERS = ['all', 'epic', 'task', 'chore', 'bug'];
@@ -57,6 +57,9 @@ export async function run(cwd) {
   let debounceTimer = null;
 
   let statusTimer = null;
+  // True while the `bd events tail --follow` watcher is running (shown as
+  // "⟳ live" in the status bar). Declared before the first setStatus() call.
+  let live = false;
   // Describe every active narrowing filter (title search, epic scope, type) in
   // one line with the result count and reset hint. Returns null when none are
   // active so the caller can fall back to a plain "Ready".
@@ -82,7 +85,8 @@ export async function run(cwd) {
     const safe = escTags(String(msg ?? '').replace(/\s*\n\s*/g, ' ').trim());
     const icon = isError ? '{red-fg}✗{/}' : '{green-fg}●{/}';
     const text = isError ? `{red-fg}${safe}{/}` : safe;
-    statusBar.setContent(` ${icon} ${text}  {gray-fg}? help · q quit{/}`);
+    const hint = live ? '⟳ live · ? help · q quit' : '? help · q quit';
+    statusBar.setContent(` ${icon} ${text}  {gray-fg}${hint}{/}`);
     screen.render();
     if (transient) {
       statusTimer = setTimeout(() => {
@@ -603,6 +607,11 @@ export async function run(cwd) {
   setFocusBorder('list');
   list.focus();
   setStatus('Loading…');
+  // Journal records are replayed from seq 0 (bd can't report the head seq), so
+  // anything stamped before boot is old. `ts` has 1-second resolution: compare
+  // against the start of the boot second, so a change landing in that same
+  // second still triggers a refresh (at worst one redundant refresh).
+  const sinceMs = Math.floor(Date.now() / 1000) * 1000;
   try {
     await loadList();
     state.selectedId = state.listOrder[0] || null;
@@ -611,6 +620,49 @@ export async function run(cwd) {
     setStatus(err.message, true);
   }
   render();
+
+  // ── Live refresh ───────────────────────────────────────────────────────────
+  // Every committed bead change (any process: agents, other shells, bdtui
+  // itself) schedules one debounced refresh(). Without Beads >= 1.3.0 the
+  // watcher exits at once and bdtui stays on manual `r`; with the journal
+  // disabled bd keeps polling forever, so stop it and show a hint.
+  let liveTimer = null;
+  let liveBusy = false;
+  function scheduleLiveRefresh(delay = 300) {
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(async () => {
+      // Don't refresh under the help modal, over an in-flight refresh, or while
+      // a transient status message (e.g. "Closed be-12") is still showing.
+      if (modalOpen || liveBusy || statusTimer) { scheduleLiveRefresh(500); return; }
+      liveBusy = true;
+      try { await refresh(); } finally { liveBusy = false; }
+    }, delay);
+  }
+  live = true;
+  const watcher = bdEventsFollow(state.cwd, {
+    onRecord: (rec) => {
+      // Truncation error lines have no issue_id; the exit handler covers them.
+      if (!rec?.issue_id || Date.parse(rec.ts) < sinceMs) return;
+      scheduleLiveRefresh();
+    },
+    onNote: (text) => {
+      if (!live || !text.includes('events journal is disabled')) return;
+      live = false;
+      watcher.kill();
+      setStatus('Live refresh off — run: bd config set events-journal true', false, true);
+    },
+    onExit: () => {
+      if (!live) return;
+      live = false;
+      setStatus(defaultStatus());
+    },
+  });
+  // Node doesn't kill piped children on exit; don't orphan a bd process
+  // holding a Dolt connection. `q` exits via process.exit(), so this covers it.
+  process.once('exit', () => watcher.kill());
+
+  // After `live = true` so the indicator shows at once; the watcher callbacks
+  // are async, so a disabled-journal hint still lands after this.
   // setStatus already appends "? help · q quit"; defaultStatus() yields "Ready"
   // (or the active-filter summary) without duplicating the help hint.
   setStatus(defaultStatus());

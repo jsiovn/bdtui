@@ -1,4 +1,5 @@
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
+import readline from 'readline';
 import { promisify } from 'util';
 
 const execFileP = promisify(execFile);
@@ -128,3 +129,20 @@ export const bdEpics = async (cwd) => {
   const all = await bdListAll(cwd);
   return Array.isArray(all) ? all.filter((b) => b.issue_type === 'epic') : [];
 };
+
+// Long-running `bd events tail --follow` (Beads >= 1.3.0 events journal).
+// Calls onRecord(obj) per JSON line on stdout, onNote(text) per stderr chunk
+// (human-readable, never JSON-parsed) and onExit(code) when the child ends.
+// Returns the child so the caller can kill() it — bd 1.3.x has no
+// --exit-on-stdin-eof, so nothing else stops it.
+export function bdEventsFollow(cwd, { onRecord, onNote, onExit }) {
+  const child = spawn('bd', ['events', 'tail', '--since', '0', '--follow'],
+    { cwd, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  readline.createInterface({ input: child.stdout }).on('line', (line) => {
+    try { onRecord(JSON.parse(line)); } catch {}
+  });
+  child.stderr.on('data', (d) => onNote(String(d)));
+  child.on('error', () => onExit(-1)); // ENOENT etc.
+  child.on('close', (code) => onExit(code));
+  return child;
+}

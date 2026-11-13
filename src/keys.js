@@ -19,7 +19,7 @@ export const HELP_TEXT = [
   '  t           Cycle type filter (all/epic/task/chore/bug)',
   '  e           Filter by epic (modal picker; x clears; switches status to all)',
   '  /           In-memory title filter (empty submit clears it)',
-  '  r           Reload (keeps active filters)',
+  '  r           Reload (keeps active filters; automatic when events journal is on)',
   '  Shift+r     Reset all filters (title / epic / type) and reload',
   '  (all & closed tabs load more rows as you scroll to the bottom)',
   '',
