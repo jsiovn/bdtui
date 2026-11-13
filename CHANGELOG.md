@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-13
+
+### Added
+
+- Mouse support for the tab bar: click a status tab to switch to it, click `type:` to cycle the type filter, `epic:` to reopen the epic picker, and `search:` to edit the title filter.
+- Mouse support for the dialogs. In the status, priority, parent, epic and workflow pickers, one click on a row picks it and the wheel moves the highlight. The help overlay scrolls with the wheel. A click outside any dialog cancels it, as `Esc` does.
+- In the Detail pane, click a row under **Depends on** / **Needed by** to jump to that bead in the list. If the bead is not in the current tab or filters, the status bar says so.
+- The status-bar hints `? help` and `L enable live` are clickable.
+- Live refresh can be turned off and on for the current session: press `Shift+l` or click `⟳ live` in the status bar. It then shows `⟳ live off`; the same key or a click turns it back on and reloads the list. This only stops bdtui's watcher, the workspace's events-journal setting is not changed.
+- README: a **Mouse** section, and a new screenshot.
+
+### Fixed
+
+- A click beside an open dialog no longer goes to the list or Detail pane behind it. Before, that click moved keyboard focus away from the dialog, which then stayed on screen and ignored its keys.
+- The **Okay** button of the text prompt (title filter, close reason) now submits. Before, clicking it cancelled the prompt, because the button took focus away from the input.
+- The tab bar now updates right after a `/` title filter: the `search:` indicator and the bead count used to appear only after the next reload.
+- bdtui now starts on projects that use embedded Dolt, which is what `bd init` creates by default. Before, the launcher ran `bd dolt test` and `bd dolt start`, both of which fail in embedded mode (there is no server), and exited with "Failed to start Dolt server".
+- `q` inside a picker now cancels the picker. Before, it quit bdtui, because the global quit key ran before the picker saw the key. `Tab`, `r`, `y`, `m` and `?` no longer act behind an open picker either.
+- After switching tab, reloading, or picking / clearing an epic filter, the new list is drawn before the detail is fetched. Before, the old rows stayed on screen for a moment, and a click or `j` / `k` in that moment selected a different bead from the one shown.
+
 ## [0.10.0] - 2026-11-13
 
 ### Added

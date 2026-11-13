@@ -1,4 +1,5 @@
 import blessed from 'blessed';
+import { backdrop } from './views/modals.js';
 
 export const HELP_TEXT = [
   '',
@@ -21,7 +22,7 @@ export const HELP_TEXT = [
   '  /           In-memory title filter (empty submit clears it)',
   '  r           Reload (keeps active filters; automatic when events journal is on)',
   '  Shift+r     Reset all filters (title / epic / type) and reload',
-  '  Shift+l     Enable events journal for live refresh (when it is off)',
+  '  Shift+l     Live refresh off / on (enables the events journal first when it is off)',
   '  (all & closed tabs load more rows as you scroll to the bottom)',
   '',
   '  Mutations',
@@ -41,10 +42,20 @@ export const HELP_TEXT = [
   '  ?           Toggle this help',
   '  q / Ctrl-C  Quit',
   '',
-  '  Press ? q or Esc to close',
+  '  Mouse',
+  '  ──────────────────────────────────────',
+  '  Tab bar     Click a status tab; click type: / epic: / search: to change it',
+  '  List        Click a bead to select it; wheel moves the selection',
+  '  Detail      Wheel scrolls; click a dependency row to jump to that bead',
+  '  Status bar  Click "? help"; click the live hint to turn live refresh off / on',
+  '  Dialogs     Click a row to pick it; wheel moves; click outside to cancel',
+  '',
+  '  Press ? q or Esc to close, or click outside',
 ].join('\n');
 
 export function showHelp(screen, onClose) {
+  // A click outside the help closes it (and never reaches the panes behind).
+  const shade = backdrop(screen, () => close());
   const box = blessed.box({
     parent: screen,
     label: ' Keybindings ',
@@ -56,6 +67,7 @@ export function showHelp(screen, onClose) {
     content: HELP_TEXT,
     tags: false,
     keys: true,
+    mouse: true,
     scrollable: true,
     alwaysScroll: true,
     scrollbar: { ch: '│' },
@@ -80,6 +92,7 @@ export function showHelp(screen, onClose) {
     if (closed) return;
     closed = true;
     screen.unkey(CLOSE_KEYS, close);
+    shade.destroy();
     box.destroy();
     screen.render();
     onClose?.();

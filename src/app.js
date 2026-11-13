@@ -2,7 +2,7 @@ import blessed from 'blessed';
 import { execFile } from 'child_process';
 import { state, loadList, loadDetail, applyMutation, applyFilters, isPaged, ensureSelectedVisible } from './state.js';
 import { createList, renderList } from './views/list.js';
-import { createDetail, renderDetail } from './views/detail.js';
+import { createDetail, renderDetail, depIdAt } from './views/detail.js';
 import { statusPicker, priorityPicker, textPrompt, parentPicker, skillPicker, epicPicker } from './views/modals.js';
 import { showHelp } from './keys.js';
 import { bdUpdate, bdClose, bdClaim, bdReopen, bdDepAdd, bdDepRemove, bdDepListDown, bdEpics, bdEventsFollow, bdEnableEventsJournal } from './bd.js';
@@ -23,11 +23,15 @@ export async function run(cwd) {
 
   const screen = blessed.screen({ smartCSR: true, title: 'bdtui', fullUnicode: true });
 
+  // Both bars are clickable. autoFocus:false keeps a click on them from taking
+  // keyboard focus off the list / detail pane (blessed focuses any clicked
+  // element otherwise), which the `screen.focused` guards below rely on.
   const tabBar = blessed.box({
     parent: screen,
     top: 0, left: 0,
     width: '100%', height: 1,
     content: '', tags: true,
+    autoFocus: false,
     style: { bg: 'black', fg: 'white' },
   });
 
@@ -37,8 +41,13 @@ export async function run(cwd) {
     width: '100%', height: 1,
     content: ' Loading… | {gray-fg}? help{/}',
     tags: true,
+    autoFocus: false,
     style: { bg: 'black', fg: 'white' },
   });
+
+  // Click targets of a bar: [fromCol, toCol, action] triples, rebuilt whenever
+  // the bar is redrawn. Both bars start at column 0, so data.x is the column.
+  const runHit = (hits, x) => hits.find(([from, to]) => x >= from && x < to)?.[2]();
 
   const list = createList(screen);
   const detail = createDetail(screen);
@@ -60,8 +69,13 @@ export async function run(cwd) {
   // True while the `bd events tail --follow` watcher is running (shown as
   // "⟳ live" in the status bar). Declared before the first setStatus() call.
   let live = false;
-  // True once bd reported the journal disabled; Shift+l can then turn it on.
+  // True once bd reported the journal disabled; Shift+l can then enable it.
   let journalOff = false;
+  // True after the user turned live refresh off for this session (Shift+l or a
+  // click on "⟳ live"); the same key / click turns it back on.
+  let livePaused = false;
+  let statusHits = [];
+  statusBar.on('click', (data) => runHit(statusHits, data.x));
   // Describe every active narrowing filter (title search, epic scope, type) in
   // one line with the result count and reset hint. Returns null when none are
   // active so the caller can fall back to a plain "Ready".
@@ -84,12 +98,21 @@ export async function run(cwd) {
     // and collapse newlines so dynamic text — bd error messages especially,
     // which can be multi-line and contain "{" — renders as plain text instead
     // of corrupting the markup or overflowing the one-line height.
-    const safe = escTags(String(msg ?? '').replace(/\s*\n\s*/g, ' ').trim());
+    const plain = String(msg ?? '').replace(/\s*\n\s*/g, ' ').trim();
+    const safe = escTags(plain);
     const icon = isError ? '{red-fg}✗{/}' : '{green-fg}●{/}';
     const text = isError ? `{red-fg}${safe}{/}` : safe;
-    const hint = live ? '⟳ live · ? help · q quit'
-      : journalOff ? 'L enable live · ? help · q quit' : '? help · q quit';
+    // Empty when live refresh is unavailable (bd without the events journal).
+    const liveLabel = live ? '⟳ live' : livePaused ? '⟳ live off' : journalOff ? 'L enable live' : '';
+    const hint = `${liveLabel ? `${liveLabel} · ` : ''}? help · q quit`;
     statusBar.setContent(` ${icon} ${text}  {gray-fg}${hint}{/}`);
+    // The hint starts after " ● <message>  " (5 columns plus the message).
+    statusHits = [[liveLabel, toggleLive], ['? help', toggleHelp]]
+      .filter(([label]) => label)
+      .map(([label, action]) => {
+        const from = 5 + plain.length + hint.indexOf(label);
+        return [from, from + label.length, action];
+      });
     screen.render();
     if (transient) {
       statusTimer = setTimeout(() => {
@@ -99,24 +122,50 @@ export async function run(cwd) {
     }
   }
 
+  let tabHits = [];
   function renderTabBar() {
-    const tabs = FILTERS.map((f) => {
-      return f === state.filter
+    tabHits = [];
+    let content = '';
+    let col = 0;
+    // Append markup that is `width` columns wide; with an action it is a
+    // click target.
+    const add = (markup, width, action) => {
+      if (action) tabHits.push([col, col + width, action]);
+      content += markup;
+      col += width;
+    };
+    const sep = () => add('  {gray-fg}│{/}  ', 5);
+    FILTERS.forEach((f, i) => {
+      if (i > 0) add('{gray-fg}│{/}', 1);
+      const markup = f === state.filter
         ? `{blue-bg}{white-fg}{bold} ${f} {/bold}{/}`
         : `{gray-fg} ${f} {/}`;
+      add(markup, f.length + 2, () => setFilter(f));
     });
-    const count = state.listOrder.length;
     const typeLabel = state.typeFilter === 'all' ? 'all' : `${state.typeFilter} only`;
-    const typeInfo = `  {gray-fg}│{/}  {yellow-fg}type:{/} ${typeLabel}`;
-    const epicInfo = state.epicFilter
-      ? `  {gray-fg}│{/}  {magenta-fg}epic:{/} ${state.epicFilter}`
-      : '';
-    const textInfo = state.textFilter
-      ? `  {gray-fg}│{/}  {green-fg}search:{/} "${escTags(state.textFilter)}"`
-      : '';
-    const info  = count > 0 ? `{gray-fg}  │  ${count} beads{/}` : '';
-    tabBar.setContent(tabs.join('{gray-fg}│{/}') + typeInfo + epicInfo + textInfo + info);
+    sep();
+    // Not returned, so it is not awaited: repeated clicks cycle on, like `t`.
+    add(`{yellow-fg}type:{/} ${typeLabel}`, 6 + typeLabel.length, () => { cycleTypeFilter(); });
+    if (state.epicFilter) {
+      sep();
+      add(`{magenta-fg}epic:{/} ${state.epicFilter}`, 6 + state.epicFilter.length, pickEpic);
+    }
+    if (state.textFilter) {
+      sep();
+      add(`{green-fg}search:{/} "${escTags(state.textFilter)}"`, 10 + state.textFilter.length, promptSearch);
+    }
+    const count = state.listOrder.length;
+    if (count > 0) add(`{gray-fg}  │  ${count} beads{/}`, 0);
+    tabBar.setContent(content);
   }
+  // One awaited action at a time: a double click would otherwise start two
+  // tab loads, or stack two pickers.
+  let tabBusy = false;
+  tabBar.on('click', async (data) => {
+    if (tabBusy) return;
+    tabBusy = true;
+    try { await runHit(tabHits, data.x); } finally { tabBusy = false; }
+  });
 
   function setFocusBorder(focused) {
     if (focused === 'list') {
@@ -188,6 +237,7 @@ export async function run(cwd) {
         state.selectedId = state.listOrder[0] || null;
       }
       ensureSelectedVisible();
+      render(); // list first, detail after (see setFilter)
       if (state.selectedId) await loadDetail(state.selectedId);
       render();
       setStatus(defaultStatus());
@@ -196,14 +246,22 @@ export async function run(cwd) {
     }
   }
 
-  async function cycleFilter(dir = 1) {
+  function cycleFilter(dir = 1) {
     const idx = FILTERS.indexOf(state.filter);
-    const next = (idx + dir + FILTERS.length) % FILTERS.length;
-    state.filter = FILTERS[next];
+    return setFilter(FILTERS[(idx + dir + FILTERS.length) % FILTERS.length]);
+  }
+
+  async function setFilter(name) {
+    if (name === state.filter) return;
+    state.filter = name;
     setStatus(`Filter: ${state.filter} — loading…`);
     try {
       await loadList();
       state.selectedId = state.listOrder[0] || null;
+      // Draw the new list before the detail fetch. Until it is drawn the
+      // screen still shows the old rows, and a click or j/k on one of them is
+      // resolved against the new listOrder, i.e. lands on the wrong bead.
+      render();
       if (state.selectedId) await loadDetail(state.selectedId);
       render();
       setStatus(defaultStatus());
@@ -246,6 +304,14 @@ export async function run(cwd) {
       handler(...args);
     });
   }
+  // Open a picker / prompt as a modal. blessed runs screen-level key handlers
+  // before the focused widget's, so without this `q` inside a picker reaches
+  // the quit binding above (and Tab / r / y / m act behind the picker) before
+  // the picker sees the key.
+  async function modal(open) {
+    modalOpen = true;
+    try { return await open(); } finally { modalOpen = false; }
+  }
 
   key(['q', 'C-c'], () => { screen.destroy(); process.exit(0); });
 
@@ -268,8 +334,8 @@ export async function run(cwd) {
   key(['S-tab'], () => cycleFilter(-1));
   key(['t'], cycleTypeFilter);
 
-  key(['e'], async () => {
-    if (screen.focused !== list) return;
+  key(['e'], () => { if (screen.focused === list) pickEpic(); });
+  async function pickEpic() {
     setStatus('Loading epics…');
     let epics;
     try {
@@ -281,7 +347,7 @@ export async function run(cwd) {
     setStatus(defaultStatus());
     let picked;
     try {
-      picked = await epicPicker(screen, epics, state.epicFilter);
+      picked = await modal(() => epicPicker(screen, epics, state.epicFilter));
     } catch {
       list.focus();
       return;
@@ -301,6 +367,7 @@ export async function run(cwd) {
       applyFilters();
     }
     state.selectedId = state.listOrder[0] || null;
+    render(); // list first, detail after (see setFilter)
     if (state.selectedId) {
       try { await loadDetail(state.selectedId); } catch (err) {
         setStatus(err.message, true, true);
@@ -309,7 +376,7 @@ export async function run(cwd) {
     }
     render();
     setStatus(defaultStatus());
-  });
+  }
 
   // '?' toggles the help modal. Registered directly (NOT through key(), which
   // swallows every global while a modal is open) so the same key that opens the
@@ -318,7 +385,7 @@ export async function run(cwd) {
   // binding would fire on the very keypress that registered it and slam the
   // modal shut again. closeHelp is non-null exactly while the help is open.
   let closeHelp = null;
-  screen.key(['?'], () => {
+  function toggleHelp() {
     if (closeHelp) { closeHelp(); return; }
     if (modalOpen) return; // another modal (a picker) owns the screen
     modalOpen = true;
@@ -328,7 +395,8 @@ export async function run(cwd) {
       list.focus();
       screen.render();
     });
-  });
+  }
+  screen.key(['?'], toggleHelp);
 
   key(['enter', 'l'], () => {
     if (screen.focused === list) { setFocusBorder('detail'); detail.focus(); screen.render(); }
@@ -364,7 +432,7 @@ export async function run(cwd) {
       .filter(Boolean);
     let newParent;
     try {
-      newParent = await parentPicker(screen, epics, { selfId: id, currentParentIds });
+      newParent = await modal(() => parentPicker(screen, epics, { selfId: id, currentParentIds }));
     } catch (err) {
       list.focus();
       if (err.message !== 'cancelled') setStatus(err.message, true, true);
@@ -415,12 +483,12 @@ export async function run(cwd) {
     screen.render();
   });
 
-  key(['/'], async () => {
-    if (screen.focused !== list) return;
+  key(['/'], () => { if (screen.focused === list) promptSearch(); });
+  async function promptSearch() {
     try {
       // Pre-fill with the active search so it can be edited; an empty submit
       // clears the title filter (other filters stay put).
-      const query = await textPrompt(screen, 'Filter by title', state.textFilter || '');
+      const query = await modal(() => textPrompt(screen, 'Filter by title', state.textFilter || ''));
       list.focus();
       state.textFilter = query || null;
       applyFilters();
@@ -428,12 +496,31 @@ export async function run(cwd) {
         state.selectedId = state.listOrder[0] || null;
       }
       ensureSelectedVisible();
-      renderList(list);
-      renderDetail(detail);
-      screen.render();
+      // Full render: the tab bar's search indicator and bead count change too.
+      render();
       setStatus(defaultStatus());
     } catch {
       list.focus();
+    }
+  }
+
+  // Click a "Depends on" / "Needed by" row in Detail to jump to that bead.
+  detail.on('click', async (data) => {
+    const id = depIdAt(detail, data.y);
+    if (!id) return;
+    if (!state.listOrder.includes(id)) {
+      setStatus(`${id} is not in this view — switch tab or reset filters`, false, true);
+      return;
+    }
+    state.selectedId = id;
+    ensureSelectedVisible();
+    render();
+    try {
+      await loadDetail(id);
+      renderDetail(detail);
+      screen.render();
+    } catch (err) {
+      setStatus(err.message, true, true);
     }
   });
 
@@ -443,7 +530,7 @@ export async function run(cwd) {
     if (screen.focused !== list || !state.selectedId) return;
     const id = state.selectedId;
     try {
-      const newStatus = await statusPicker(screen);
+      const newStatus = await modal(() => statusPicker(screen));
       list.focus();
       const oldStatus = state.beadsById.get(id)?.status;
       setStatus(`${id}: ${oldStatus} → ${newStatus}…`);
@@ -462,7 +549,7 @@ export async function run(cwd) {
     if (screen.focused !== list || !state.selectedId) return;
     const id = state.selectedId;
     try {
-      const reason = await textPrompt(screen, 'Close reason');
+      const reason = await modal(() => textPrompt(screen, 'Close reason'));
       list.focus();
       setStatus(`Closing ${id}…`);
       await applyMutation(id, () => bdClose(id, reason, state.cwd));
@@ -516,7 +603,7 @@ export async function run(cwd) {
     if (screen.focused !== list || !state.selectedId) return;
     const id = state.selectedId;
     try {
-      const priority = await priorityPicker(screen);
+      const priority = await modal(() => priorityPicker(screen));
       list.focus();
       setStatus(`Setting priority ${priority} on ${id}…`);
       await applyMutation(id, () => bdUpdate(id, { priority }, state.cwd));
@@ -574,7 +661,7 @@ export async function run(cwd) {
     const id = state.selectedId;
     const bead = state.beadsById.get(id);
     try {
-      const line = await skillPicker(screen, id, bead?.issue_type);
+      const line = await modal(() => skillPicker(screen, id, bead?.issue_type));
       list.focus();
       await copyToClipboard(line, {
         busyMsg: `Copying ${line}…`,
@@ -673,9 +760,28 @@ export async function run(cwd) {
   // holding a Dolt connection. `q` exits via process.exit(), so this covers it.
   process.once('exit', () => watcher?.kill());
 
-  // Shift+l: opt in to the events journal for this workspace, then restart the
-  // watcher. Only acts after bd reported the journal disabled.
-  key(['S-l'], async () => {
+  // Shift+l, or a click on the live hint in the status bar:
+  //   live          → turn it off for this session (stops the watcher only;
+  //                   the workspace's journal setting is left alone)
+  //   turned off    → turn it back on and reload, to catch up on what changed
+  //   journal off   → opt in to the events journal for this workspace (writes
+  //                   .beads/config.yaml), then start the watcher
+  // Does nothing when bd has no events journal at all.
+  async function toggleLive() {
+    if (live) {
+      live = false;
+      livePaused = true;
+      clearTimeout(liveTimer);
+      watcher.kill();
+      setStatus('Live refresh off — press Shift+l or click "live off" to turn it back on', false, true);
+      return;
+    }
+    if (livePaused) {
+      livePaused = false;
+      startLive(Math.floor(Date.now() / 1000) * 1000);
+      await refresh();
+      return;
+    }
     if (!journalOff) return;
     try {
       await bdEnableEventsJournal(state.cwd);
@@ -685,7 +791,8 @@ export async function run(cwd) {
     } catch (err) {
       setStatus(err.message, true, true);
     }
-  });
+  }
+  key(['S-l'], toggleLive);
 
   // After `live = true` so the indicator shows at once; the watcher callbacks
   // are async, so a disabled-journal hint still lands after this.

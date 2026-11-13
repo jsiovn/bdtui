@@ -2,7 +2,7 @@
 
 Fast blessed-based terminal UI for the [`bd`](https://github.com/gastownhall/beads) beads issue tracker.
 
-![bdtui screenshot](https://raw.githubusercontent.com/jsiovn/bdtui/master/docs/images/bdtui-jul-03.png)
+![bdtui screenshot](https://raw.githubusercontent.com/jsiovn/bdtui/master/docs/images/bdtui-nov-04.png)
 
 ## Requirements
 
@@ -38,11 +38,11 @@ bdtui .            # explicit current directory
 bdtui ~/www/myapp  # explicit project path
 ```
 
-The list refreshes automatically (the status bar shows `⟳ live`) when another process changes a bead, using the Beads events journal: needs Beads ≥ 1.3.0 and the journal turned on (`bd config set events-journal true`, or press `Shift+l` in bdtui when it offers to). Otherwise press `r` to reload.
+The list refreshes automatically (the status bar shows `⟳ live`) when another process changes a bead, using the Beads events journal: needs Beads ≥ 1.3.0 and the journal turned on (`bd config set events-journal true`, or press `Shift+l` in bdtui when it offers to). Otherwise press `r` to reload. To turn live refresh off for the current session, press `Shift+l` or click `⟳ live`; the same key or a click on `⟳ live off` turns it back on.
 
 ## Layout
 
-A top tab bar (the active status filter is highlighted — shown here as `[ready]` — followed by the live `type:` / `epic:` / `search:` and bead-count indicators), a two-pane body with the **Beads** list on the left and the **Detail** view on the right, and a bottom status bar:
+A top tab bar (the active status filter is highlighted — shown here as `[ready]` — followed by the live `type:` / `epic:` / `search:` and bead-count indicators), a two-pane body with the **Beads** list on the left and the **Detail** view on the right, and a bottom status bar. The tabs, the indicators and the status-bar hints are clickable (see [Mouse](#mouse)):
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ be-12 P2 open    T └ Refresh tokens
 | `/`                 | In-memory title filter (empty submit clears it)                                                                                                                                                                                                                                                                                                               |
 | `r`                 | Reload (keeps active filters); automatic when the Beads events journal is on                                                                                                                                                                                                                                                                                  |
 | `Shift+r`           | Reset all filters (title / epic / type) and reload                                                                                                                                                                                                                                                                                                            |
-| `Shift+l`           | Enable the Beads events journal (`bd config set events-journal true`) and start live refresh; only when the journal is off                                                                                                                                                                                                                                    |
+| `Shift+l`           | Turn live refresh off / on for this session. When the Beads events journal is off, it enables the journal first (`bd config set events-journal true`) and starts live refresh                                                                                                                                                                                 |
 | `s`                 | Change status                                                                                                                                                                                                                                                                                                                                                 |
 | `c`                 | Close with reason                                                                                                                                                                                                                                                                                                                                             |
 | `Shift+c`           | Claim (in_progress + assign self)                                                                                                                                                                                                                                                                                                                             |
@@ -99,6 +99,22 @@ be-12 P2 open    T └ Refresh tokens
 | `m`                 | Release mouse capture so you can drag-select & copy detail text with your terminal (toggle)                                                                                                                                                                                                                                                                   |
 | `?`                 | Help overlay                                                                                                                                                                                                                                                                                                                                                  |
 | `q` / `Ctrl-C`      | Quit                                                                                                                                                                                                                                                                                                                                                          |
+
+## Mouse
+
+Everything on screen that shows a choice can be clicked. The keyboard still does all of it.
+
+| Where       | What the mouse does                                                                                                                                              |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tab bar     | Click a status tab to switch to it. Click `type:` to cycle the type filter, `epic:` to reopen the epic picker, `search:` to edit the title filter.                 |
+| Beads list  | Click a bead to select it. The wheel moves the selection.                                                                                                        |
+| Detail pane | The wheel scrolls. Click a row under **Depends on** / **Needed by** to jump to that bead (it must be in the current tab and filters).                             |
+| Status bar  | Click `? help` to open the help. Click `⟳ live` to turn live refresh off, `⟳ live off` to turn it on, `L enable live` to enable the journal.                     |
+| Dialogs     | Click a row to pick it (in the status, priority and parent pickers this applies the change at once). The wheel moves the highlight. Click outside the dialog to cancel. |
+| Text prompt | **Okay** submits, **Cancel** or a click outside cancels.                                                                                                         |
+| Help        | The wheel scrolls. Click outside to close.                                                                                                                       |
+
+While bdtui holds the mouse, your terminal cannot select text. Press `m` to release it, drag to select and copy, then press `m` again.
 
 ## Agent workflow
 

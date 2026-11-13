@@ -22,10 +22,14 @@ const { run } = await import('../src/app.js');
 await run(cwd);
 
 function ensureDoltRunning(cwd) {
-  const test = spawnSync('bd', ['dolt', 'test'], { cwd, stdio: 'ignore' });
+  const test = spawnSync('bd', ['dolt', 'test'], { cwd, encoding: 'utf8' });
   if (test.status === 0) return;
   // `bd` missing or otherwise unusable — let the TUI surface the real error.
   if (test.error && test.error.code === 'ENOENT') return;
+  // Embedded Dolt (the `bd init` default) runs in-process: there is no server
+  // to test or start, and bd fails every server-only command with
+  // "not supported in embedded mode (no Dolt server)".
+  if (/embedded mode/i.test(`${test.stdout}${test.stderr}`)) return;
 
   process.stderr.write("Dolt server not running — starting via 'bd dolt start'…\n");
   const start = spawnSync('bd', ['dolt', 'start'], { cwd, stdio: 'inherit' });

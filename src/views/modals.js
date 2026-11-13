@@ -1,8 +1,49 @@
 import blessed from 'blessed';
 
+// Invisible full-screen layer under a modal. blessed sends a mouse event to the
+// topmost clickable element under the pointer, so without this a click beside
+// a dialog lands on the list / detail / tab bar behind it and steals keyboard
+// focus from the dialog. Create it BEFORE the modal widget (z-order is creation
+// order). render() is replaced so it is hit-tested but paints nothing.
+export function backdrop(screen, onOutside) {
+  const shade = blessed.box({
+    parent: screen,
+    top: 0, left: 0,
+    width: '100%', height: '100%',
+    autoFocus: false,
+  });
+  shade.render = function () {
+    this.lpos = this._getCoords();
+    return this.lpos;
+  };
+  shade.on('click', onOutside);
+  return shade;
+}
+
+// One click picks a row. blessed's own mouse:true click only moves the
+// highlight to a row and needs a second click on it to confirm. The detached
+// check covers a click on the already-highlighted row, which blessed has just
+// confirmed (and the picker closed) by the time this runs.
+function pickOnClick(picker) {
+  picker.on('element click', (el) => {
+    const i = picker.items.indexOf(el);
+    if (i >= 0 && !picker.detached) picker.enterSelected(i);
+  });
+}
+
 function listPicker(screen, label, items, borderColor = 'cyan', width = 36, left = 'center') {
   return new Promise((resolve, reject) => {
     const height = Math.min(items.length + 4, 20);
+    const close = () => {
+      shade.destroy();
+      picker.destroy();
+      screen.render();
+    };
+    const cancel = () => {
+      close();
+      reject(new Error('cancelled'));
+    };
+    const shade = backdrop(screen, cancel);
     const picker = blessed.list({
       parent: screen,
       label: ` ${label} `,
@@ -14,6 +55,7 @@ function listPicker(screen, label, items, borderColor = 'cyan', width = 36, left
       items,
       keys: true,
       vi: true,
+      mouse: true,
       tags: true,
       style: {
         selected: { bg: 'blue', fg: 'white', bold: true },
@@ -21,22 +63,18 @@ function listPicker(screen, label, items, borderColor = 'cyan', width = 36, left
         label: { fg: borderColor, bold: true },
       },
     });
+    pickOnClick(picker);
 
     picker.focus();
     screen.render();
 
     picker.once('select', (item) => {
-      picker.destroy();
-      screen.render();
+      close();
       // Strip color tags so callers get the plain text (e.g. the command to copy).
       resolve(blessed.helpers.cleanTags(item.content));
     });
 
-    picker.key(['escape', 'q', 'h'], () => {
-      picker.destroy();
-      screen.render();
-      reject(new Error('cancelled'));
-    });
+    picker.key(['escape', 'q', 'h'], cancel);
   });
 }
 
@@ -60,6 +98,7 @@ export function priorityPicker(screen) {
 
 export function textPrompt(screen, label, defaultVal = '') {
   return new Promise((resolve, reject) => {
+    const shade = backdrop(screen, () => prompt._.input.cancel());
     const prompt = blessed.prompt({
       parent: screen,
       border: 'line',
@@ -71,13 +110,22 @@ export function textPrompt(screen, label, defaultVal = '') {
       tags: true,
       keys: true,
       vi: true,
+      // A click inside the dialog must not reach the backdrop (cancel) or move
+      // focus off the input (blur also cancels): absorb it, without focusing.
+      autoFocus: false,
       style: {
         border: { fg: 'green' },
         label: { fg: 'green', bold: true },
       },
     });
+    prompt.on('click', () => {});
+    // blessed's Button.press() focuses the button first. That blurs the input,
+    // and a blurred input cancels itself, so the Okay button cancels. Submit
+    // straight from the press instead.
+    prompt._.okay.press = () => prompt._.input.submit();
 
     prompt.input(`${label}:`, defaultVal, (err, value) => {
+      shade.destroy();
       prompt.destroy();
       screen.render();
       if (err || value == null) return reject(new Error('cancelled'));
@@ -125,6 +173,16 @@ export function epicPicker(screen, epics, currentEpicId = null) {
     const width = 72;
     const height = Math.min(rows.length + 4, Math.max(8, screen.height - 4));
 
+    const close = () => {
+      shade.destroy();
+      picker.destroy();
+      screen.render();
+    };
+    const cancel = () => {
+      close();
+      reject(new Error('cancelled'));
+    };
+    const shade = backdrop(screen, cancel);
     const picker = blessed.list({
       parent: screen,
       label: ' Filter by Epic ',
@@ -136,6 +194,7 @@ export function epicPicker(screen, epics, currentEpicId = null) {
       items: rows,
       keys: true,
       vi: true,
+      mouse: true,
       tags: true,
       scrollbar: { ch: ' ', track: { bg: 'black' }, style: { bg: 'magenta' } },
       style: {
@@ -144,6 +203,8 @@ export function epicPicker(screen, epics, currentEpicId = null) {
         label: { fg: 'magenta', bold: true },
       },
     });
+
+    pickOnClick(picker);
 
     // Select current epic by default if set
     if (currentEpicId) {
@@ -156,21 +217,15 @@ export function epicPicker(screen, epics, currentEpicId = null) {
 
     picker.once('select', (_item, index) => {
       const picked = ids[index];
-      picker.destroy();
-      screen.render();
+      close();
       if (picked === null) return reject(new Error('cancelled'));
       resolve(picked === CLEAR_FILTER_TAG ? null : picked);
     });
 
-    picker.key(['escape', 'q'], () => {
-      picker.destroy();
-      screen.render();
-      reject(new Error('cancelled'));
-    });
+    picker.key(['escape', 'q'], cancel);
 
     picker.key(['x'], () => {
-      picker.destroy();
-      screen.render();
+      close();
       resolve(null);
     });
   });
@@ -218,6 +273,16 @@ export function parentPicker(screen, epics, { selfId, currentParentIds = [] } = 
     const width = 72;
     const height = Math.min(rows.length + 4, Math.max(8, screen.height - 4));
 
+    const close = () => {
+      shade.destroy();
+      picker.destroy();
+      screen.render();
+    };
+    const cancel = () => {
+      close();
+      reject(new Error('cancelled'));
+    };
+    const shade = backdrop(screen, cancel);
     const picker = blessed.list({
       parent: screen,
       label: ' Change Parent ',
@@ -229,6 +294,7 @@ export function parentPicker(screen, epics, { selfId, currentParentIds = [] } = 
       items: rows,
       keys: true,
       vi: true,
+      mouse: true,
       tags: true,
       scrollbar: { ch: ' ', track: { bg: 'black' }, style: { bg: 'magenta' } },
       style: {
@@ -237,20 +303,16 @@ export function parentPicker(screen, epics, { selfId, currentParentIds = [] } = 
         label: { fg: 'magenta', bold: true },
       },
     });
+    pickOnClick(picker);
 
     picker.focus();
     screen.render();
 
     picker.once('select', (_item, index) => {
-      picker.destroy();
-      screen.render();
+      close();
       resolve(ids[index]);
     });
 
-    picker.key(['escape', 'q'], () => {
-      picker.destroy();
-      screen.render();
-      reject(new Error('cancelled'));
-    });
+    picker.key(['escape', 'q'], cancel);
   });
 }
