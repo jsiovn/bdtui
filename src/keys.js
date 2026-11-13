@@ -21,6 +21,7 @@ export const HELP_TEXT = [
   '  /           In-memory title filter (empty submit clears it)',
   '  r           Reload (keeps active filters; automatic when events journal is on)',
   '  Shift+r     Reset all filters (title / epic / type) and reload',
+  '  Shift+l     Enable events journal for live refresh (when it is off)',
   '  (all & closed tabs load more rows as you scroll to the bottom)',
   '',
   '  Mutations',

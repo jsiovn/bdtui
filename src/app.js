@@ -5,7 +5,7 @@ import { createList, renderList } from './views/list.js';
 import { createDetail, renderDetail } from './views/detail.js';
 import { statusPicker, priorityPicker, textPrompt, parentPicker, skillPicker, epicPicker } from './views/modals.js';
 import { showHelp } from './keys.js';
-import { bdUpdate, bdClose, bdClaim, bdReopen, bdDepAdd, bdDepRemove, bdDepListDown, bdEpics, bdEventsFollow } from './bd.js';
+import { bdUpdate, bdClose, bdClaim, bdReopen, bdDepAdd, bdDepRemove, bdDepListDown, bdEpics, bdEventsFollow, bdEnableEventsJournal } from './bd.js';
 
 const FILTERS = ['deferred', 'blocked', 'ready', 'in_progress', 'closed', 'all'];
 const TYPE_FILTERS = ['all', 'epic', 'task', 'chore', 'bug'];
@@ -60,6 +60,8 @@ export async function run(cwd) {
   // True while the `bd events tail --follow` watcher is running (shown as
   // "⟳ live" in the status bar). Declared before the first setStatus() call.
   let live = false;
+  // True once bd reported the journal disabled; Shift+l can then turn it on.
+  let journalOff = false;
   // Describe every active narrowing filter (title search, epic scope, type) in
   // one line with the result count and reset hint. Returns null when none are
   // active so the caller can fall back to a plain "Ready".
@@ -85,7 +87,8 @@ export async function run(cwd) {
     const safe = escTags(String(msg ?? '').replace(/\s*\n\s*/g, ' ').trim());
     const icon = isError ? '{red-fg}✗{/}' : '{green-fg}●{/}';
     const text = isError ? `{red-fg}${safe}{/}` : safe;
-    const hint = live ? '⟳ live · ? help · q quit' : '? help · q quit';
+    const hint = live ? '⟳ live · ? help · q quit'
+      : journalOff ? 'L enable live · ? help · q quit' : '? help · q quit';
     statusBar.setContent(` ${icon} ${text}  {gray-fg}${hint}{/}`);
     screen.render();
     if (transient) {
@@ -638,28 +641,51 @@ export async function run(cwd) {
       try { await refresh(); } finally { liveBusy = false; }
     }, delay);
   }
-  live = true;
-  const watcher = bdEventsFollow(state.cwd, {
-    onRecord: (rec) => {
-      // Truncation error lines have no issue_id; the exit handler covers them.
-      if (!rec?.issue_id || Date.parse(rec.ts) < sinceMs) return;
-      scheduleLiveRefresh();
-    },
-    onNote: (text) => {
-      if (!live || !text.includes('events journal is disabled')) return;
-      live = false;
-      watcher.kill();
-      setStatus('Live refresh off — run: bd config set events-journal true', false, true);
-    },
-    onExit: () => {
-      if (!live) return;
-      live = false;
-      setStatus(defaultStatus());
-    },
-  });
+  // Records stamped before `since` are the replay and are ignored. Callbacks
+  // check `child === watcher` so a killed watcher's late exit can't clear the
+  // state of the one Shift+l started after it.
+  let watcher = null;
+  function startLive(since) {
+    live = true;
+    const child = bdEventsFollow(state.cwd, {
+      onRecord: (rec) => {
+        // Truncation error lines have no issue_id; the exit handler covers them.
+        if (child !== watcher || !rec?.issue_id || Date.parse(rec.ts) < since) return;
+        scheduleLiveRefresh();
+      },
+      onNote: (text) => {
+        if (child !== watcher || !live || !text.includes('events journal is disabled')) return;
+        live = false;
+        journalOff = true;
+        child.kill();
+        setStatus('Live refresh off — press Shift+l to enable the events journal (writes .beads/config.yaml)', false, true);
+      },
+      onExit: () => {
+        if (child !== watcher || !live) return;
+        live = false;
+        setStatus(defaultStatus());
+      },
+    });
+    watcher = child;
+  }
+  startLive(sinceMs);
   // Node doesn't kill piped children on exit; don't orphan a bd process
   // holding a Dolt connection. `q` exits via process.exit(), so this covers it.
-  process.once('exit', () => watcher.kill());
+  process.once('exit', () => watcher?.kill());
+
+  // Shift+l: opt in to the events journal for this workspace, then restart the
+  // watcher. Only acts after bd reported the journal disabled.
+  key(['S-l'], async () => {
+    if (!journalOff) return;
+    try {
+      await bdEnableEventsJournal(state.cwd);
+      journalOff = false;
+      startLive(Math.floor(Date.now() / 1000) * 1000);
+      setStatus('Events journal enabled — live refresh on', false, true);
+    } catch (err) {
+      setStatus(err.message, true, true);
+    }
+  });
 
   // After `live = true` so the indicator shows at once; the watcher callbacks
   // are async, so a disabled-journal hint still lands after this.

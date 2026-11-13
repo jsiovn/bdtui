@@ -130,6 +130,10 @@ export const bdEpics = async (cwd) => {
   return Array.isArray(all) ? all.filter((b) => b.issue_type === 'epic') : [];
 };
 
+// Turn the events journal on for this workspace (writes .beads/config.yaml).
+export const bdEnableEventsJournal = (cwd) =>
+  runBdVoid(['config', 'set', 'events-journal', 'true'], cwd);
+
 // Long-running `bd events tail --follow` (Beads >= 1.3.0 events journal).
 // Calls onRecord(obj) per JSON line on stdout, onNote(text) per stderr chunk
 // (human-readable, never JSON-parsed) and onExit(code) when the child ends.

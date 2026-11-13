@@ -38,7 +38,7 @@ bdtui .            # explicit current directory
 bdtui ~/www/myapp  # explicit project path
 ```
 
-The list refreshes automatically (the status bar shows `⟳ live`) when another process changes a bead, using the Beads events journal: needs Beads ≥ 1.3.0 and `bd config set events-journal true`. Otherwise press `r` to reload.
+The list refreshes automatically (the status bar shows `⟳ live`) when another process changes a bead, using the Beads events journal: needs Beads ≥ 1.3.0 and the journal turned on (`bd config set events-journal true`, or press `Shift+l` in bdtui when it offers to). Otherwise press `r` to reload.
 
 ## Layout
 
@@ -87,6 +87,7 @@ be-12 P2 open    T └ Refresh tokens
 | `/`                 | In-memory title filter (empty submit clears it)                                                                                                                                                                                                                                                                                                               |
 | `r`                 | Reload (keeps active filters); automatic when the Beads events journal is on                                                                                                                                                                                                                                                                                  |
 | `Shift+r`           | Reset all filters (title / epic / type) and reload                                                                                                                                                                                                                                                                                                            |
+| `Shift+l`           | Enable the Beads events journal (`bd config set events-journal true`) and start live refresh; only when the journal is off                                                                                                                                                                                                                                    |
 | `s`                 | Change status                                                                                                                                                                                                                                                                                                                                                 |
 | `c`                 | Close with reason                                                                                                                                                                                                                                                                                                                                             |
 | `Shift+c`           | Claim (in_progress + assign self)                                                                                                                                                                                                                                                                                                                             |
