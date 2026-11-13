@@ -122,6 +122,19 @@ function renderDescription(lines, text) {
 
 let lastId = null;
 
+// Content line → bead id for the dependency rows drawn by the last
+// renderDetail(), so a click on one can be resolved to its bead (depIdAt).
+const depRows = new Map();
+
+// Bead id of the dependency row at screen row `y`, or null. Reads blessed
+// internals: childBase is the first visible wrapped line and _clines.rtof maps
+// a wrapped line back to its content line.
+export function depIdAt(box, y) {
+  const row = y - box.atop - box.itop;
+  if (row < 0 || row >= box.height - box.iheight) return null;
+  return depRows.get(box._clines.rtof[box.childBase + row]) ?? null;
+}
+
 export function createDetail(screen) {
   return blessed.box({
     parent: screen,
@@ -146,6 +159,7 @@ export function createDetail(screen) {
 }
 
 export function renderDetail(box) {
+  depRows.clear();
   const id = state.selectedId;
   if (!id) { box.setContent(t('gray', 'No bead selected.')); return; }
 
@@ -198,13 +212,21 @@ export function renderDetail(box) {
   }
 
   // ── Dependencies ───────────────────────────────────────────────────────────
+  // Each row is recorded under its content line index. Entries in `lines` can
+  // hold several lines (sectionHeader does), so count the newlines.
+  const pushDeps = (deps) => {
+    for (const d of deps) {
+      depRows.set(lines.reduce((n, l) => n + l.split('\n').length, 0), d.id || String(d));
+      lines.push(depLine(d));
+    }
+  };
   if (b.depsDown?.length > 0) {
     lines.push(sectionHeader(`Depends on (${b.depsDown.length})`));
-    for (const d of b.depsDown) lines.push(depLine(d));
+    pushDeps(b.depsDown);
   }
   if (b.depsUp?.length > 0) {
     lines.push(sectionHeader(`Needed by (${b.depsUp.length})`));
-    for (const d of b.depsUp) lines.push(depLine(d));
+    pushDeps(b.depsUp);
   }
 
   // ── Description ────────────────────────────────────────────────────────────

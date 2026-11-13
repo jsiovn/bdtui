@@ -22,7 +22,7 @@ node bin/bdtui.js ~/some/proj   # run against another project's .beads/ db
 node bin/bdtui.js -v            # print version
 ```
 
-Requires `bd` on `$PATH` and a project containing a `.beads/` database (`bd init`). `bin/bdtui.js` auto-starts the Dolt server (`bd dolt start`) if `bd dolt test` fails, then `chdir`s into the target and hands off to `src/app.js`.
+Requires `bd` on `$PATH` and a project containing a `.beads/` database (`bd init`). `bin/bdtui.js` auto-starts the Dolt server (`bd dolt start`) if `bd dolt test` fails (skipped for embedded-Dolt projects, the `bd init` default, where both commands fail with "not supported in embedded mode"), then `chdir`s into the target and hands off to `src/app.js`.
 
 ## Architecture
 
@@ -47,7 +47,11 @@ Strict one-way layering — data → state → views, wired together by `app.js`
 
 - **Shift keybindings.** blessed reports a shifted letter as `S-<lower>`, never bare uppercase — bind `'S-r'`, `'S-c'`, `'S-g'`, NOT `'R'`/`'C'`/`'G'` (those are dead).
 
-- **Modal handling.** `app.js`'s `key()` wrapper swallows every global key while `modalOpen` is true, so each modal owns its own close keys. `?` is the exception: it is registered directly on `screen` as an open/close toggle (binding it as a close key would slam the help shut on the same keypress that opened it). Help close keys are bound at _screen_ level, not box level, because a mouse click can steal focus from the box.
+- **Modal handling.** `app.js`'s `key()` wrapper swallows every global key while `modalOpen` is true, so each modal owns its own close keys. Every picker / prompt must be opened through `modal(() => somePicker(...))`, which sets `modalOpen` for its lifetime: blessed runs screen-level key handlers _before_ the focused widget's, so an unwrapped picker lets `q` quit the app. `?` is the exception: it is registered directly on `screen` as an open/close toggle (binding it as a close key would slam the help shut on the same keypress that opened it). Help close keys are bound at _screen_ level, not box level, because a mouse click can steal focus from the box.
+
+- **List before detail.** Whenever `state.listOrder` changes, call `render()` before the next `await` (e.g. before `loadDetail`). The list widget maps a clicked / navigated row index onto `state.listOrder`, so stale rows on screen select the wrong bead.
+
+- **Mouse routing.** blessed sends a mouse event to the topmost clickable element under the pointer, and any clicked element with `autoFocus !== false` takes keyboard focus. So (1) every modal creates a `backdrop()` (`views/modals.js`) _before_ its own widget: it catches clicks beside the dialog (cancel) so they never reach, or focus, the panes behind; (2) click targets that are not panes (tab bar, status bar) set `autoFocus: false`, or a click on them breaks the `screen.focused === list` guards. The tab bar and status bar keep `[fromCol, toCol, action]` hit ranges that are rebuilt on every redraw (`renderTabBar`, `setStatus`). Pickers pick on one click via `pickOnClick()`.
 
 - **Effective "blocked" status.** The Blocked tab and the status glyphs are _derived_: an `open` bead whose id is in `state.blockedIds` (from `bd blocked`) renders as `blocked`. `bdBlocked` merges derived-blocked beads with explicitly `status=blocked` beads, deduped, because `bd blocked` omits the latter.
 
