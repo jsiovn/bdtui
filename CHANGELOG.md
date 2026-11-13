@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-13
+
+### Added
+
+- Live refresh: bdtui follows the Beads events journal (`bd events tail --follow`, Beads ≥ 1.3.0) and reloads the list shortly after any process creates, updates, claims or closes a bead, so you no longer need `r` while agents work. Bursts of changes are coalesced into one reload, active filters and the selection are kept, and the status bar shows `⟳ live` while it is on.
+- If the journal is disabled for the workspace, bdtui stays on manual `r` and the status bar offers `L enable live`. Pressing `Shift+l` runs `bd config set events-journal true` (this writes `.beads/config.yaml` and journals every `bd` command in the workspace from then on) and starts live refresh. bdtui never turns the journal on by itself. With an older bd it silently stays on manual `r`, as before.
+
 ## [0.9.0] - 2026-11-13
 
 ### Changed
