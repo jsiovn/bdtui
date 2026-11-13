@@ -6,9 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ## [0.9.0] - 2026-11-13
 
-### Added
+### Changed
 
-- On an epic, the `w` workflow-command picker has a third section, **Herdr skills**: `/executor-epic-sequential <id> herdr`, `/executor-epic-sequential-worktree <id> herdr`, and the same two with `herdr opencode`. The `herdr` argument (agent-workflow-beads ≥ 1.3.0) runs each bead in a named interactive Claude agent in Herdr, cleared with `/clear` between beads, instead of a headless `claude -p` worker. The argument is cyan; the copied command is still plain text. Task beads get no Herdr section.
+- The `w` workflow-command picker is one list again: one row per skill (epics: `/executor-epic-sequential` and `/executor-epic-sequential-worktree`; other beads: the five per-bead executors), no section titles, 56 columns wide. Skill names stay green and bead ids gray; the copied command is plain text. With agent-workflow-beads ≥ 1.3.0 the epic commands pick their own worker (a Herdr tab, or a headless run of the CLI they are pasted into), so per-CLI rows are no longer needed.
+- README: how to invoke the copied command in Claude Code, omp (`/skill:<name>`) and OpenCode.
+
+### Removed
+
+- The picker's **OpenCode skills** section (the commands with an `opencode` argument). agent-workflow-beads 1.3.0 removed the OpenCode implementor, and the argument is ignored there.
 
 ## [0.8.1] - 2026-10-29
 
