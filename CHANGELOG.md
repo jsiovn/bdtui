@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-11-20
+
+### Removed
+
+- The `w` workflow picker no longer lists `/executor-rework-in-place` for tasks. agent-workflow-beads 1.4.0 dropped that skill, so the copied command pointed at a skill that no longer exists.
+
 ## [0.11.0] - 2026-11-13
 
 ### Added
