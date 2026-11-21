@@ -243,7 +243,6 @@ export function skillPicker(screen, beadId, issueType) {
         'executor-task-worktree',
         'executor-epic-task',
         'executor-epic-task-worktree',
-        'executor-rework-in-place',
       ];
   const items = skills.map((skill) => `{green-fg}/${skill}{/green-fg} {gray-fg}${beadId}{/gray-fg}`);
   return listPicker(screen, 'Copy workflow command', items, 'magenta', 56, 1);
