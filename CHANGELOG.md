@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-11-22
+
+### Fixed
+
+- The Beads list columns line up again when ids have different lengths. The id column was a fixed 14 characters wide, so a longer id such as `maxdrop-em3.117` pushed the rest of its row one column to the right. It now fits the longest id in the list.
+- Beads under a sub-epic now nest under it. The tree stopped at two levels, so the children of a nested epic (epic → sub-epic → task) were listed as top-level rows, mixed in with unrelated beads. The list now nests to any depth, with `│` lines for the levels above. Filtering by a sub-epic with `e` now shows its children too.
+
 ## [0.11.1] - 2026-11-20
 
 ### Removed

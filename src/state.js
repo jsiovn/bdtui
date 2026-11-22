@@ -10,7 +10,7 @@ export const state = {
   beadsById: new Map(),
   fullTreeItems: [],   // unfiltered ordered tree items (before typeFilter)
   listOrder: [],
-  treeMeta: new Map(), // id -> { depth: 0|1, isLast: bool }
+  treeMeta: new Map(), // id -> { depth, isLast, guides } (guides: per ancestor level, does a │ continue)
   selectedId: null,
   filter: 'ready',
   typeFilter: 'all',   // 'all' | 'epic' | 'task'
@@ -43,22 +43,17 @@ export function ensureSelectedVisible() {
   );
 }
 
+// The epic's subtree: the epic row plus every following row nested deeper than
+// it, re-rooted so the epic renders at depth 0 (it may be a nested sub-epic).
 function scopeToEpic(items, epicId) {
-  const out = [];
-  let inside = false;
-  for (const it of items) {
-    if (it.depth === 0) {
-      inside = it.id === epicId;
-      if (inside) out.push(it);
-    } else if (inside) {
-      out.push(it);
-    }
-  }
-  // Fix isLast on the last child after scoping (cheap, optional polish).
-  for (let i = out.length - 1; i >= 0; i--) {
-    if (out[i].depth > 0) { out[i] = { ...out[i], isLast: true }; break; }
-  }
-  return out;
+  const start = items.findIndex((it) => it.id === epicId);
+  if (start < 0) return [];
+  const base = items[start].depth;
+  let end = start + 1;
+  while (end < items.length && items[end].depth > base) end++;
+  return items.slice(start, end).map((it) => ({
+    ...it, depth: it.depth - base, guides: it.guides.slice(base),
+  }));
 }
 
 // Apply every active narrowing filter (epic → type → text) to fullTreeItems and
@@ -74,7 +69,7 @@ export function applyFilters() {
     items = items
       .filter((t) => state.beadsById.get(t.id)?.issue_type === state.typeFilter)
       .sort((x, y) => byUpdatedDesc(state.beadsById.get(x.id), state.beadsById.get(y.id)))
-      .map((t) => ({ id: t.id, depth: 0, isLast: false }));
+      .map((t) => ({ id: t.id, depth: 0, isLast: false, guides: [] }));
   }
   if (state.textFilter) {
     const q = state.textFilter.toLowerCase();
@@ -83,10 +78,10 @@ export function applyFilters() {
     // renders as an orphan indented under a branch glyph.
     items = items
       .filter((t) => state.beadsById.get(t.id)?.title?.toLowerCase().includes(q))
-      .map((t) => ({ id: t.id, depth: 0, isLast: false }));
+      .map((t) => ({ id: t.id, depth: 0, isLast: false, guides: [] }));
   }
   state.listOrder = items.map((t) => t.id);
-  state.treeMeta = new Map(items.map((t) => [t.id, { depth: t.depth, isLast: t.isLast }]));
+  state.treeMeta = new Map(items.map((t) => [t.id, { depth: t.depth, isLast: t.isLast, guides: t.guides }]));
   state.visibleCount = isPaged()
     ? Math.min(state.pageSize, state.listOrder.length)
     : state.listOrder.length;
@@ -95,22 +90,13 @@ export function applyFilters() {
 function buildTreeOrder(beads, parentOf) {
   const byId = new Map(beads.map((b) => [b.id, b]));
   // A bead is a root when it has no parent present in this bead set (epics and
-  // standalone beads). The tree is intentionally two levels deep — epics on top,
-  // their direct children indented under them.
-  const isRoot = (id) => {
-    const pid = parentOf.get(id);
-    return !pid || !byId.has(pid);
-  };
-
+  // standalone beads). Everything else nests under its parent, to any depth
+  // (epic → sub-epic → task).
   const childrenOf = new Map();
   const roots = [];
   for (const b of beads) {
     const pid = parentOf.get(b.id);
-    // Nest a bead only when its parent is itself a root. Anything else — no
-    // parent, a parent filtered out of this view, or a parent that is itself
-    // nested (deeper than two levels) — renders at the top level so no bead is
-    // ever silently dropped from the list.
-    if (pid && byId.has(pid) && isRoot(pid)) {
+    if (pid && byId.has(pid)) {
       if (!childrenOf.has(pid)) childrenOf.set(pid, []);
       childrenOf.get(pid).push(b);
     } else {
@@ -124,12 +110,23 @@ function buildTreeOrder(beads, parentOf) {
   roots.sort(byUpdatedDesc);
 
   const ordered = [];
-  for (const root of roots) {
-    ordered.push({ id: root.id, depth: 0, isLast: false });
-    const children = childrenOf.get(root.id) || [];
+  const visited = new Set();
+  // guides[i] says whether the ancestor at depth i+1 has later siblings, i.e.
+  // whether its │ line continues past this row.
+  const walk = (bead, depth, isLast, guides) => {
+    visited.add(bead.id);
+    ordered.push({ id: bead.id, depth, isLast, guides });
+    const children = (childrenOf.get(bead.id) || []).filter((c) => !visited.has(c.id));
+    const childGuides = depth > 0 ? [...guides, !isLast] : [];
     children.forEach((child, i) => {
-      ordered.push({ id: child.id, depth: 1, isLast: i === children.length - 1 });
+      walk(child, depth + 1, i === children.length - 1, childGuides);
     });
+  };
+  for (const root of roots) walk(root, 0, false, []);
+  // Beads caught in a parent cycle are never reached from a root; list them at
+  // the top level so no bead is ever silently dropped.
+  for (const b of [...beads].sort(byUpdatedDesc)) {
+    if (!visited.has(b.id)) walk(b, 0, false, []);
   }
 
   return ordered;

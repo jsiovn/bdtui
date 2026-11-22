@@ -63,12 +63,14 @@ A top tab bar (the active status filter is highlighted — shown here as `[ready
 
 Each list row reads `id · priority · status · type-badge · title`. The detail pane shows the selected bead's fields, its close reason (for closed beads), dependencies, and rendered description.
 
-Beads with parent–child dependencies are shown as a tree inside the active filter — child rows nest under their epic with `├` / `└`:
+Beads with parent–child dependencies are shown as a tree inside the active filter — child rows nest under their epic with `├` / `└`, and sub-epics nest their own children one level deeper:
 
 ```
-be-10 P1 open    E Auth epic
-be-11 P2 open    T ├ Add OAuth login
-be-12 P2 open    T └ Refresh tokens
+be-10   P1 open    E Auth epic
+be-11   P2 open    T ├ Add OAuth login
+be-13   P2 open    E └ Token handling
+be-13.1 P2 open    T   ├ Refresh tokens
+be-13.2 P3 open    T   └ Revoke on logout
 ```
 
 ## Keybindings

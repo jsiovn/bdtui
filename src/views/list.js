@@ -28,8 +28,8 @@ function t(color, text) {
   return `{${color}-fg}${text}{/}`;
 }
 
-function formatRow(bead, depth = 0, isLast = false) {
-  const id   = bead.id.padEnd(14);
+function formatRow(bead, depth = 0, isLast = false, guides = [], idWidth = 14) {
+  const id   = bead.id.padEnd(idWidth);
   const p    = `P${bead.priority ?? 2}`;
   // Effective status mirrors how `bd blocked` derives the Blocked tab:
   // an open bead whose blockers aren't all closed reads as "blocked",
@@ -39,7 +39,9 @@ function formatRow(bead, depth = 0, isLast = false) {
     : (bead.status || 'open');
   const s    = (STATUS_SHORT[stat] || stat.slice(0, 7)).padEnd(7);
   const badge = TYPE_BADGE[bead.issue_type] ?? t('gray', '?');
-  const prefix = depth > 0 ? t('gray', isLast ? ' └ ' : ' ├ ') : '   ';
+  const prefix = depth > 0
+    ? t('gray', ' ' + guides.map((g) => (g ? '│ ' : '  ')).join('') + (isLast ? '└ ' : '├ '))
+    : '   ';
   const title = bead.title || '';
 
   const idCol = t('gray', id);
@@ -80,10 +82,14 @@ export function renderList(list) {
     : total;
   const ids = state.listOrder.slice(0, shown);
 
+  // Pad the id column to the longest id in the whole list (not just the shown
+  // page) so every row's columns line up and stay put as more rows load.
+  const idWidth = state.listOrder.reduce((w, id) => Math.max(w, id.length), 0);
+
   const items = ids.map((id) => {
     const b = state.beadsById.get(id);
-    const { depth = 0, isLast = false } = state.treeMeta.get(id) ?? {};
-    return b ? formatRow(b, depth, isLast) : t('gray', id);
+    const { depth = 0, isLast = false, guides = [] } = state.treeMeta.get(id) ?? {};
+    return b ? formatRow(b, depth, isLast, guides, idWidth) : t('gray', id);
   });
 
   const selIdx = state.selectedId
