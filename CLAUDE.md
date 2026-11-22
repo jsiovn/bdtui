@@ -31,7 +31,7 @@ Strict one-way layering — data → state → views, wired together by `app.js`
 - **`src/bd.js`** — the _only_ module that spawns `bd`. `runBd` parses JSON stdout; `runBdVoid` runs commands whose output is human-readable text (`dep add/remove`) and must NOT be JSON-parsed. `bdErrorMessage` unwraps `bd`'s structured `{"error": …}` failure body into a readable string. Note `MAX_BUFFER` is raised to 64MB because `list --all` can exceed Node's 1MB default.
 
 - **`src/state.js`** — a single mutable `state` object plus all data-loading/filtering logic. Key invariants:
-  - The epic→child **tree is built from the `parent` field embedded in each `bd list` row** (`buildTreeOrder`), so there is no per-bead subprocess fan-out even on large repos. The tree is intentionally only two levels deep.
+  - The epic→child **tree is built from the `parent` field embedded in each `bd list` row** (`buildTreeOrder`), so there is no per-bead subprocess fan-out even on large repos. The tree nests to any depth (epic → sub-epic → task); each row carries `depth`, `isLast` and `guides` (per ancestor level, whether a `│` continues) for the branch glyphs. An epic filter (`scopeToEpic`) takes the epic's whole subtree and re-roots it, so it works on nested sub-epics too.
   - `applyFilters()` is the single place filters are applied, and they **compose** in order: epic scope → type → text. A reload (`r`) replays them; the status bar describes them. Type/text filters flatten the tree to a flat list.
   - The **`all` and `closed` tabs page lazily** (`isPaged()`, `visibleCount`, `pageSize`): every bead is fetched (cap lifted via `--limit 0`) but rows render in batches as you scroll. `ensureSelectedVisible()` must be called after `selectedId` is finalized so a kept selection stays rendered.
 
