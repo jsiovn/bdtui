@@ -92,7 +92,7 @@ function applyInline(s) {
 }
 
 function renderDescription(lines, text) {
-  const src = text.split('\n');
+  const src = text.split(/\r\n?|\n/);
   let inCode = false;
   for (const raw of src) {
     const l = raw;
@@ -112,7 +112,7 @@ function renderDescription(lines, text) {
     else if (l.startsWith('# '))  lines.push(`  ${bold(t('white', applyInline(esc(l.slice(2)))))}`);
     else if (l.match(/^[-*] /))   lines.push(`  ${t('gray', '•')} ${applyInline(esc(l.slice(2)))}`);
     else if (l.match(/^\s*\d+\.\s+/)) {
-      const m = l.match(/^(\s*)(\d+)\.\s+(.*)$/);
+      const m = l.match(/^(\s*)(\d+)\.\s+([\s\S]*)$/);
       lines.push(`  ${m[1]}${t('gray', m[2] + '.')} ${applyInline(esc(m[3]))}`);
     }
     else if (l.startsWith('> '))  lines.push(`  ${t('gray', '│')} ${t('gray', applyInline(esc(l.slice(2))))}`);

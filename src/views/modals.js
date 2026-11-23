@@ -138,6 +138,20 @@ export function textPrompt(screen, label, defaultVal = '') {
 
 const CLEAR_FILTER_TAG = '__clear__';
 
+// Epic picker row text: the id column fits the longest id so every title starts
+// at the same column, and the title is cut to the room left inside a dialog of
+// `width` (border 2 + scrollbar 1) with an ellipsis, rather than letting blessed
+// wrap it and show only its first line.
+function epicColumns(epics, width, prefixWidth) {
+  const idWidth = Math.max(0, ...epics.map((e) => e.id.length));
+  const room = width - 3 - prefixWidth - idWidth - 1;
+  return (e) => {
+    const title = e.title || '';
+    const fit = title.length > room ? `${title.slice(0, room - 1)}…` : title;
+    return `{gray-fg}${e.id.padEnd(idWidth)}{/} ${fit}`;
+  };
+}
+
 export function epicPicker(screen, epics, currentEpicId = null) {
   return new Promise((resolve, reject) => {
     // Newest epics on top: sort by created_at descending (ISO-8601 UTC strings
@@ -157,11 +171,11 @@ export function epicPicker(screen, epics, currentEpicId = null) {
       ids.push(CLEAR_FILTER_TAG);
     }
 
+    const width = 72;
+    const columns = epicColumns(sorted, width, 2);
     for (const e of sorted) {
       const marker = e.id === currentEpicId ? '{cyan-fg}●{/} ' : '  ';
-      const id = e.id.padEnd(12);
-      const title = (e.title || '').slice(0, 60);
-      rows.push(`${marker}{gray-fg}${id}{/} ${title}`);
+      rows.push(`${marker}${columns(e)}`);
       ids.push(e.id);
     }
 
@@ -170,7 +184,6 @@ export function epicPicker(screen, epics, currentEpicId = null) {
       ids.push(null);
     }
 
-    const width = 72;
     const height = Math.min(rows.length + 4, Math.max(8, screen.height - 4));
 
     const close = () => {
@@ -262,14 +275,13 @@ export function parentPicker(screen, epics, { selfId, currentParentIds = [] } = 
     const rows = ['{yellow-fg}Standalone bead{/}'];
     const ids = [null];
 
+    const width = 72;
+    const columns = epicColumns(sorted, width, 0);
     for (const e of sorted) {
-      const id = e.id.padEnd(12);
-      const title = (e.title || '').slice(0, 60);
-      rows.push(`{gray-fg}${id}{/} ${title}`);
+      rows.push(columns(e));
       ids.push(e.id);
     }
 
-    const width = 72;
     const height = Math.min(rows.length + 4, Math.max(8, screen.height - 4));
 
     const close = () => {
