@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-11-23
+
+### Fixed
+
+- The Detail pane no longer crashes bdtui on a bead whose text has Windows line endings (CRLF). A numbered list line that ended in `\r` passed the list check but failed the parse after it, so bdtui exited with `TypeError: Cannot read properties of null (reading '1')`. Descriptions, acceptance criteria, notes and close reasons are now split on `\r\n`, `\r` and `\n`, and a line recognized as a numbered item always parses.
+
 ## [0.11.2] - 2026-11-22
 
 ### Fixed
